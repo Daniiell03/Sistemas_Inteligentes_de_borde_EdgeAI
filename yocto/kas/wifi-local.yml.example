@@ -1,0 +1,8 @@
+header:
+  version: 14
+
+local_conf_header:
+  wifi: |
+    WIFI_SSID = "MI_RED"
+    WIFI_PSK = "MI_CLAVE"
+    IMAGE_INSTALL:append = " wifi-config"
