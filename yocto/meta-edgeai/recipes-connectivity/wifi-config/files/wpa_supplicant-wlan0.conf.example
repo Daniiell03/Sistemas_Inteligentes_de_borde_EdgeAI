@@ -1,0 +1,26 @@
+# Redes conocidas. wpa_supplicant explora al arrancar y se conecta a la
+# disponible con mayor "priority". Si la primera no esta al alcance, prueba
+# la siguiente sin intervencion.
+#
+# OJO con el punto de acceso de un iPhone: iOS usa el apostrofo tipografico
+# U+2019, no el recto, de modo que un SSID como "Daniel's iPhone" escrito
+# aqui con ' NO coincide. Renombrar el dispositivo sin apostrofo evita el
+# problema entero.
+ctrl_interface=/var/run/wpa_supplicant
+ctrl_interface_group=0
+update_config=1
+country=CR
+
+network={
+    ssid="RED_1"
+    psk="CLAVE_1"
+    key_mgmt=WPA-PSK
+    priority=10
+}
+
+network={
+    ssid="RED_2"
+    psk="CLAVE_2"
+    key_mgmt=WPA-PSK
+    priority=5
+}

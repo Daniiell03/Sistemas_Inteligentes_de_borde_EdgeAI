@@ -1,1 +1,2 @@
 yocto/kas/wifi-local.yml
+yocto/meta-edgeai/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
