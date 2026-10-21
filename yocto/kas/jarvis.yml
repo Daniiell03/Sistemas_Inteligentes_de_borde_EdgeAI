@@ -1,0 +1,52 @@
+header:
+  version: 14
+
+build_system: openembedded
+machine: raspberrypi4-64
+distro: poky
+target: core-image-base
+
+repos:
+  edgeai-jarvis:                 # este mismo repositorio
+    layers:
+      yocto/meta-edgeai:
+
+  bitbake:
+    url: https://git.openembedded.org/bitbake
+    branch: "2.18"
+    layers:
+      .: excluded
+
+  openembedded-core:
+    url: https://git.openembedded.org/openembedded-core
+    branch: wrynose
+    layers:
+      meta:
+
+  meta-yocto:
+    url: https://git.yoctoproject.org/meta-yocto
+    branch: wrynose
+    layers:
+      meta-poky:
+
+  meta-openembedded:
+    url: https://git.openembedded.org/meta-openembedded
+    branch: wrynose
+    layers:
+      meta-oe:
+      meta-python:
+      meta-multimedia:
+
+  meta-raspberrypi:
+    url: https://github.com/agherzan/meta-raspberrypi.git
+    branch: wrynose
+
+local_conf_header:
+  jarvis: |
+    INIT_MANAGER = "systemd"
+    LICENSE_FLAGS_ACCEPTED = "synaptics-killswitch"
+    ENABLE_UART = "1"
+    IMAGE_FSTYPES = "wic.bz2 wic.bmap"
+    INHERIT += "rm_work"
+    # Solo para desarrollo: root sin contraseña y SSH
+    EXTRA_IMAGE_FEATURES += "ssh-server-openssh allow-empty-password empty-root-password allow-root-login"
