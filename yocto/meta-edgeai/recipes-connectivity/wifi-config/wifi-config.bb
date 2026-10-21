@@ -8,7 +8,8 @@ WIFI_SSID ?= ""
 WIFI_PSK ?= ""
 WIFI_COUNTRY ?= "CR"
 
-SRC_URI = "file://wlan0.network"
+SRC_URI = "file://wlan0.network \
+           file://wpa_supplicant-wlan0.conf.in"
 S = "${UNPACKDIR}"
 
 RDEPENDS:${PN} = "wpa-supplicant"
@@ -17,16 +18,13 @@ do_install() {
     if [ -z "${WIFI_SSID}" ]; then
         bbfatal "WIFI_SSID vacio: construya con el archivo wifi-local.yml"
     fi
+
     install -d ${D}${sysconfdir}/wpa_supplicant
-    cat > ${D}${sysconfdir}/wpa_supplicant/wpa_supplicant-wlan0.conf <<EOT
-ctrl_interface=/run/wpa_supplicant
-country=${WIFI_COUNTRY}
-update_config=1
-network={
-    ssid="${WIFI_SSID}"
-    psk="${WIFI_PSK}"
-}
-EOT
+    sed -e 's|@WIFI_SSID@|${WIFI_SSID}|' \
+        -e 's|@WIFI_PSK@|${WIFI_PSK}|' \
+        -e 's|@WIFI_COUNTRY@|${WIFI_COUNTRY}|' \
+        ${S}/wpa_supplicant-wlan0.conf.in \
+        > ${D}${sysconfdir}/wpa_supplicant/wpa_supplicant-wlan0.conf
     chmod 0600 ${D}${sysconfdir}/wpa_supplicant/wpa_supplicant-wlan0.conf
 
     install -d ${D}${sysconfdir}/systemd/network
