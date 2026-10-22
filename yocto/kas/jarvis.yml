@@ -15,7 +15,7 @@ repos:
     url: https://git.openembedded.org/bitbake
     branch: "2.18"
     layers:
-      .: excluded
+      .: disabled
 
   openembedded-core:
     url: https://git.openembedded.org/openembedded-core

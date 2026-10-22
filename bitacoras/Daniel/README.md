@@ -104,3 +104,21 @@
 - Probar whisper-server con voz en español (tiny contra base).
 - Medir Ollama + `tev1:0.8b` en la Pi: latencia, RAM, temperatura y lecturas de la SD.
 - Escribir la receta de Ollama (ruta crítica; corte el 30 de octubre).
+
+---
+
+## Entrada 5 — 21 de octubre de 2026 (noche, continuación)
+
+**Actividades realizadas**
+- Decisión de diseño: el LED pasa a manejarse con el driver `gpio-led` del kernel (`dtoverlay=gpio-led,gpio=17,label=jarvis-led`), igual que el DHT22 se maneja con el driver `dht11` por IIO. La aplicación solo lee y escribe archivos en sysfs, por lo que no requiere `python3-gpiod` en la imagen.
+- Implementación real de la HAL en `app/jarvis/hal_rpi.py`: `Dht22IioSensor` (hilo de muestreo cada 2.5 s, caché de la última lectura válida, validación de rangos, contador de errores) y `SysfsLed`.
+- Script de prueba `app/tools/probar_hal.py` (10 ciclos de lectura con parpadeo del LED) para ejecutar en la Pi.
+- Conexión del repositorio local con GitHub; rama `Daniel` unida al historial de `main`.
+
+**Productos obtenidos**
+- `config.txt` de la imagen con los dos overlays: `dtoverlay=dht11,gpiopin=4` y `dtoverlay=gpio-led,gpio=17,label=jarvis-led`.
+- HAL real, lista para probar con hardware.
+
+**Problemas encontrados y solución**
+- Se versionaron por error los archivos `__pycache__/*.pyc` → se agregaron a `.gitignore` y se retiraron del repositorio.
+- kas 5.5 marca como obsoleto el valor `excluded` para desactivar una capa → se reemplazó por `disabled`.
