@@ -1,0 +1,4 @@
+# Cambiar de modelo = editar esta linea y reiniciar el servicio (sin reconstruir la imagen)
+WHISPER_MODEL=/usr/share/whisper/ggml-base.bin
+WHISPER_LANG=es
+WHISPER_THREADS=4
