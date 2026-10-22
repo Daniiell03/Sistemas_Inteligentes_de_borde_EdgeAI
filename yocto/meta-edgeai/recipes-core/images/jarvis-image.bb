@@ -5,6 +5,6 @@ SUMMARY = "Imagen del asistente de voz Jarvis (EdgeAI)"
 IMAGE_INSTALL:append = " \
     wifi-config avahi-daemon \
     alsa-utils libgpiod-tools \
-    python3 libstdc++ \
+    python3 libstdc++ whisper-cpp \
     curl htop \
 "
