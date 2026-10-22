@@ -4,7 +4,7 @@ header:
 build_system: openembedded
 machine: raspberrypi4-64
 distro: poky
-target: core-image-base
+target: jarvis-image
 
 repos:
   edgeai-jarvis:                 # este mismo repositorio
@@ -48,5 +48,8 @@ local_conf_header:
     ENABLE_UART = "1"
     IMAGE_FSTYPES = "wic.bz2 wic.bmap"
     INHERIT += "rm_work"
+    BB_HASHSERVE_DB_DIR = "${SSTATE_DIR}"
+    hostname:pn-base-files = "jarvis"
+    RPI_EXTRA_CONFIG = "dtoverlay=dht11,gpiopin=4"
     # Solo para desarrollo: root sin contraseña y SSH
     EXTRA_IMAGE_FEATURES += "ssh-server-openssh allow-empty-password empty-root-password allow-root-login"
