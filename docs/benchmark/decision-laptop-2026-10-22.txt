@@ -1,0 +1,21 @@
+Calentando el modelo (la primera carga no se mide)...
+OK   1.43 s  conf=0.64  READ_TEMP (esperado READ_TEMP)  «hace mucho calor, dime a cuánto estamos»
+OK   1.16 s  conf=0.65  READ_TEMP (esperado READ_TEMP)  «qué temperatura hay en el cuarto»
+OK   1.15 s  conf=0.79  READ_TEMP (esperado READ_TEMP)  «hace frío aquí, cuántos grados hay»
+OK   1.49 s  conf=0.97  READ_HUM  (esperado READ_HUM )  «qué tan húmedo está el ambiente»
+OK   1.36 s  conf=0.95  READ_HUM  (esperado READ_HUM )  «dime la humedad»
+OK   1.53 s  conf=0.50  READ_HUM  (esperado READ_HUM )  «está muy seco el aire»
+OK   1.53 s  conf=0.91  LED_ON    (esperado LED_ON   )  «prende la luz»
+OK   1.53 s  conf=0.78  LED_ON    (esperado LED_ON   )  «enciende el led por favor»
+OK   1.53 s  conf=1.00  LED_ON    (esperado LED_ON   )  «activa el led»
+OK   1.53 s  conf=1.00  LED_OFF   (esperado LED_OFF  )  «apaga la luz»
+OK   1.85 s  conf=1.00  LED_OFF   (esperado LED_OFF  )  «apaga el led»
+OK   1.83 s  conf=0.93  LED_OFF   (esperado LED_OFF  )  «ya no quiero la luz encendida»
+OK   1.85 s  conf=0.85  UNKNOWN   (esperado UNKNOWN  )  «cuéntame un chiste»
+OK   1.77 s  conf=0.86  UNKNOWN   (esperado UNKNOWN  )  «qué hora es»
+OK   1.69 s  conf=0.45  UNKNOWN   (esperado UNKNOWN  )  «pon música»
+OK   1.94 s  conf=0.74  UNKNOWN   (esperado UNKNOWN  )  «llama a mi mamá»
+
+Aciertos: 16/16  ·  latencia media 1.57 s  ·  máx 1.94 s
+Confianza mínima en aciertos: 0.45
+Sin errores en esta corrida.
