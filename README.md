@@ -331,8 +331,8 @@ Una sola solicitud resuelve cuatro dimensiones. Es exactamente la capacidad que 
 
 | Rol | Persona | Roles del instructivo | Responsabilidad nuclear |
 |---|---|---|---|
-| **Rol A — Director de Proyecto e Ingeniero de Aplicación** | _(compañero)_ | Director(a) + Investigador(a) | Documento de propuesta, router de decisión, aplicación, verificación |
-| **Rol B — Líder Técnico / Arquitecto de Plataforma** | **Josué** | Líder técnico | Yocto, recetas, imagen, HAL, hardware, instalación |
+| **Rol A — Director de Proyecto e Ingeniero de Aplicación** | **Saúl Quesada** | Director(a) + Investigador(a) | Documento de propuesta, router de decisión, aplicación, verificación |
+| **Rol B — Líder Técnico / Arquitecto de Plataforma** | **Daniel Chavarria** | Líder técnico | Yocto, recetas, imagen, HAL, hardware, instalación |
 
 Auditoría de calidad rotativa (§6.3).
 
@@ -350,7 +350,7 @@ Auditoría de calidad rotativa (§6.3).
 
 **Verificación.** Benchmark: latencia por etapa (p50/p95) de ambos carriles, RAM residente, temperatura, tasa de acierto de intención por dominio · pruebas unitarias contra el mock · pruebas de aceptación CU-01 a CU-08 · GitHub Actions con lint y pruebas.
 
-#### Rol B — Josué
+#### Rol B — Daniel Chavarria García
 
 **Plataforma Yocto.** Entorno *poky* + `meta-openembedded` (`meta-oe`, `meta-python`) + `meta-raspberrypi`, con revisiones fijadas en `jarvis.yml` (kas), `MACHINE = "raspberrypi4-64"`.
 
