@@ -2,7 +2,7 @@
 
 **Curso:** Sistemas Embebidos · TEC — Escuela de Ingeniería Electrónica
 **Facilitador:** Dr. Ing. Johan Carvajal Godínez
-**Equipo:** 2 personas · **Rol A:** _(compañero)_ · **Rol B:** Josué
+**Equipo:** 2 personas · **Rol A:** Saúl Quesada · **Rol B:** Daniel CHavarria
 **Plataforma:** Raspberry Pi 4 (8 GB) · MicroSD
 **Repositorio:** `github.com/Daniiell03/Sistemas_Inteligentes_de_borde_EdgeAI`
 **Build de imagen:** Yocto Project + kas · **Inferencia local:** Ollama ≥ 0.35 (`/v1/systemone` + chat)
