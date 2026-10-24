@@ -122,3 +122,52 @@
 **Problemas encontrados y solución**
 - Se versionaron por error los archivos `__pycache__/*.pyc` → se agregaron a `.gitignore` y se retiraron del repositorio.
 - kas 5.5 marca como obsoleto el valor `excluded` para desactivar una capa → se reemplazó por `disabled`.
+## Entrada 6 — 23 de octubre de 2026 (tarde)
+
+**Actividades realizadas**
+
+- Revisión del alcance de la aplicación con el Rol A. Se amplió el catálogo de operaciones de 4 a 42, organizadas en seis dominios (agenda, casa, sistema, ambiente, conocimiento y meta), y se decidió que la primera iteración opere por comandos de texto, dejando el pipeline de voz como capacidad disponible en la imagen pero fuera del alcance de la aplicación.
+- **Decisión de diseño — router de dos etapas.** El catálogo de 42 operaciones excede el límite de 24 criterios por pregunta `choice` de Tev1, y la precisión del modelo de 0.8B se degrada con muchas opciones semánticamente cercanas. Se adoptó una clasificación jerárquica: primera pregunta de dominio (6 opciones) y segunda de acción dentro del dominio (máximo 12), junto con preguntas auxiliares de destino, completitud y riesgo en la misma solicitud.
+- **Decisión de diseño — segundo carril de inferencia.** Las operaciones de resumen del día, preguntas abiertas y reescritura de texto requieren generación de lenguaje, que `/v1/systemone` no provee por servir únicamente modelos de decisión. Se incorporó `llama3.2:1b` sobre `/api/chat` como carril generativo, manteniendo `tev1:0.8b` como carril de decisión.
+- **Clase `ollama-model.bbclass`.** Se implementó la lógica común de empaquetado de modelos de Ollama: resolución de la ruta de origen mediante `FILESEXTRAPATHS`, verificación de integridad, instalación en `${datadir}/ollama/models` y asignación de permisos. Cada receta de modelo aporta únicamente el nombre del paquete y su suma SHA-256.
+- **Recetas `ollama-model-tev1` (0.8b) y `ollama-model-llama32` (1b).** Dos recetas independientes en lugar de una sola, para permitir retirar el carril generativo sin reconstruir el de decisión y para que el árbol de dependencias distinga componentes obligatorios de opcionales. Ambas heredan `allarch`: los modelos son datos y no varían por arquitectura.
+- **Tarea `do_verify_model`.** Se añadió una tarea entre `do_unpack` y `do_install` que compara el SHA-256 del paquete contra el valor declarado en la receta y aborta el build si difieren.
+- Empaquetado de ambos modelos con `yocto/scripts/preparar-modelo.sh`: `tev1:0.8b` (795 MB) y `llama3.2:1b` (1.3 GB), ambos fuera del repositorio por su tamaño.
+- Ampliación de `IMAGE_ROOTFS_EXTRA_SPACE` a 4 GB para acomodar el binario de Ollama y los dos modelos.
+- Construcción de `jarvis-image` con los tres paquetes y extracción del grafo de dependencias y el manifiesto como insumo del ítem 7 de la propuesta.
+
+**Productos obtenidos**
+
+- `yocto/meta-edgeai/classes/ollama-model.bbclass`
+- `yocto/meta-edgeai/recipes-ai/ollama-models/ollama-model-tev1_0.8b.bb`
+- `yocto/meta-edgeai/recipes-ai/ollama-models/ollama-model-llama32_1b.bb`
+- `jarvis-image` de 2.3 GB comprimida, con Ollama 0.40.6 y ambos modelos horneados en `/usr/share/ollama/models`. Build de 6428 tareas, todas exitosas, sin advertencias.
+- Análisis de dependencias con árbol, peso por componente y dependencias en tiempo de ejecución (`docs/dependencias/`).
+- Ampliación del swap del host de 4 a 8 GB.
+
+**Datos medidos**
+
+- Primer build con los modelos: 27 min 29 s (422 tareas nuevas de 6428; el resto reutilizado de `sstate-cache`).
+- Reconstrucción tras corregir la variable `S`: 16 min 11 s.
+- Imagen: 2.3 GB comprimida. Los modelos representan el 97 % del peso total; el sistema base, el núcleo y los servicios suman menos de 80 MB.
+- `ollama-model-llama32` 1204.9 MB · `ollama-model-tev1` 755.2 MB · `whisper-models` 192.1 MB · `ollama-bin` 16.0 MB.
+
+**Problemas encontrados y solución**
+
+- **Desajuste entre el nombre de archivo de la receta y el nombre del paquete.** Las recetas `ollama-model-tev1_0.8b.bb` y `ollama-model-llama32_1b.bb` producen los paquetes `ollama-model-tev1` y `ollama-model-llama32` (la porción posterior al guion bajo es `PV`, no parte de `PN`), pero `IMAGE_INSTALL` los referenciaba incluyendo la versión. Se verificó con `bitbake-layers show-recipes 'ollama*'` antes de lanzar el build y se corrigieron los nombres, evitando un fallo de resolución de dependencias.
+- **Advertencia `do_unpack` por la variable `S` no definida.** La clase no declaraba `S`, por lo que BitBake asumió `${UNPACKDIR}/${BP}`, un directorio inexistente: el paquete de modelos se descomprime directamente en `UNPACKDIR` sin subdirectorio propio. Se añadió `S = "${UNPACKDIR}"` a la clase y la reconstrucción terminó sin advertencias.
+- **Paquete `ollama-bin` duplicado** en el `IMAGE_INSTALL` de `jarvis-image.bb`. Sin efecto funcional, corregido por higiene.
+- **Dos directorios de build coexistentes.** El build anterior residía en `~/yocto-work/build` y kas escribe en `~/edgeai-jarvis/build`, lo que llevó a inspeccionar artefactos obsoletos del 22 de octubre y concluir erróneamente que el build de hoy había fallado. Se verificó la fecha y el contenido del manifiesto para confirmar que la construcción sí había sido correcta. Pendiente: eliminar el directorio obsoleto.
+- **El fetcher `file://` no verifica sumas de verificación**, a diferencia de un `SRC_URI` remoto con `SRC_URI[sha256sum]`. Dado que los paquetes de modelos se mantienen fuera del repositorio, un paquete corrupto o sustituido pasaría inadvertido. Resuelto con la tarea `do_verify_model` descrita arriba.
+
+**Riesgos abiertos**
+
+- `ollama-bin` produce un RPM de 16 MB frente a un tarball original de ~1.45 GB. Aunque la exclusión de los backends CUDA explica buena parte de la diferencia, conviene verificar el contenido de `/usr/lib/ollama/` en la primera prueba sobre hardware.
+- La viabilidad de `tev1:0.8b` sobre ARM64 continúa sin verificar: el benchmark disponible (16/16 aciertos, 1.57 s de latencia media) se ejecutó sobre el host x86 y no es representativo del desempeño en la Raspberry Pi.
+- El diseño de iluminación por habitaciones requiere PWM por canal, incompatible con el driver `gpio-led` actualmente configurado, que solo admite encendido y apagado. Pendiente evaluar un controlador PCA9685 por I2C.
+
+**Referencias consultadas**
+
+- Yocto Project Reference Manual — variables `S`, `UNPACKDIR`, `FILESEXTRAPATHS`, `IMAGE_ROOTFS_EXTRA_SPACE`: https://docs.yoctoproject.org/ref-manual/variables.html
+- Yocto Project Development Tasks Manual — creación de clases propias: https://docs.yoctoproject.org/dev-manual/index.html
+- Documentación de Ollama — API System One (`/v1/systemone`) y API de chat (`/api/chat`): https://docs.ollama.com/
