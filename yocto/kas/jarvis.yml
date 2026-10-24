@@ -50,6 +50,6 @@ local_conf_header:
     INHERIT += "rm_work"
     BB_HASHSERVE_DB_DIR = "${SSTATE_DIR}"
     hostname:pn-base-files = "jarvis"
-    RPI_EXTRA_CONFIG = "dtoverlay=dht11,gpiopin=4\ndtoverlay=gpio-led,gpio=17,label=jarvis-led"
+    RPI_EXTRA_CONFIG = "dtoverlay=dht11,gpiopin=4\ndtparam=i2c_arm=on\ndtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4"
     # Solo para desarrollo: root sin contraseña y SSH
     EXTRA_IMAGE_FEATURES += "ssh-server-openssh allow-empty-password empty-root-password allow-root-login"
