@@ -1,6 +1,6 @@
 # Bitácora individual — Líder Técnico / Arquitecto de Plataforma (Rol B)
 
-**Proyecto:** II Proyecto — Sistemas Inteligentes de Borde (EdgeAI): asistente de voz "Jarvis"
+**Proyecto:** II Proyecto — Sistemas Inteligentes de Borde (EdgeAI): asistente "Jarvis"
 **Curso:** Sistemas Embebidos · TEC
 **Responsable:** Daniel
 **Plataforma objetivo:** Raspberry Pi 4 (8 GB) · Yocto Project 6.0 "Wrynose"
@@ -96,17 +96,6 @@
 
 ---
 
-## Pendientes para la siguiente sesión (laboratorio, con hardware)
-
-- Flashear `jarvis-image` y verificar arranque, Wi-Fi, servicios y RAM disponible.
-- Cablear y probar el DHT22 (IIO) y el LED (`gpioset`).
-- Probar el micrófono y el parlante (`arecord` / `aplay`).
-- Probar whisper-server con voz en español (tiny contra base).
-- Medir Ollama + `tev1:0.8b` en la Pi: latencia, RAM, temperatura y lecturas de la SD.
-- Escribir la receta de Ollama (ruta crítica; corte el 30 de octubre).
-
----
-
 ## Entrada 5 — 21 de octubre de 2026 (noche, continuación)
 
 **Actividades realizadas**
@@ -122,6 +111,9 @@
 **Problemas encontrados y solución**
 - Se versionaron por error los archivos `__pycache__/*.pyc` → se agregaron a `.gitignore` y se retiraron del repositorio.
 - kas 5.5 marca como obsoleto el valor `excluded` para desactivar una capa → se reemplazó por `disabled`.
+
+---
+
 ## Entrada 6 — 23 de octubre de 2026 (tarde)
 
 **Actividades realizadas**
@@ -171,3 +163,68 @@
 - Yocto Project Reference Manual — variables `S`, `UNPACKDIR`, `FILESEXTRAPATHS`, `IMAGE_ROOTFS_EXTRA_SPACE`: https://docs.yoctoproject.org/ref-manual/variables.html
 - Yocto Project Development Tasks Manual — creación de clases propias: https://docs.yoctoproject.org/dev-manual/index.html
 - Documentación de Ollama — API System One (`/v1/systemone`) y API de chat (`/api/chat`): https://docs.ollama.com/
+
+---
+
+## Entrada 7 — 24 de octubre de 2026
+
+**Actividades realizadas**
+
+- **Verificación del contenido del paquete de Ollama.** Se inspeccionó el RPM generado mediante `rpm2cpio | cpio -idmv` para confirmar que la receta instala las bibliotecas de inferencia y no únicamente el ejecutable. El paquete contiene `/usr/bin/ollama`, las bibliotecas `libllama.so`, `libllama-common.so`, `libmtmd.so` y `libomp.so` con sus enlaces de versión, los binarios auxiliares `llama-server` y `llama-quantize`, la unidad `ollama.service` y su archivo de preset. Con esto queda cerrado el riesgo registrado en la entrada anterior.
+- **Decisión de diseño — iluminación con LEDs RGB.** Se sustituyó el LED único por LEDs RGB conectados mediante jumpers a una protoboard, con cada LED representando una habitación. Esto habilita color, intensidad y escenas, que el driver `gpio-led` no permite por admitir únicamente encendido y apagado.
+- **Decisión de diseño — dos habitaciones en lugar de cuatro.** La Raspberry Pi 4 dispone de dos canales de PWM por hardware. Cuatro habitaciones en RGB exigirían doce canales, de los cuales diez se generarían por software desde espacio de usuario; el PWM por software depende del planificador de Linux y produce parpadeo perceptible bajo carga sostenida de CPU, que es justamente la condición durante una inferencia. Se limitó la implementación demostrable a dos habitaciones (seis canales, dos de ellos por hardware) y se documentaron cuatro como diseño objetivo, con el controlador PCA9685 por I2C identificado como vía de escalamiento.
+- **Actualización del BSP.** Se retiró `dtoverlay=gpio-led`, que reservaba el GPIO17 en modo conmutado, y se incorporaron `dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4` para los dos canales de PWM por hardware y `dtparam=i2c_arm=on` para habilitar el bus I2C de cara a la incorporación futura del PCA9685.
+- **Redacción de las secciones 6, 7 y 8 de la propuesta de diseño** (arquitectura del sistema, análisis de dependencias y estrategia de integración), correspondientes al 35 % de la rúbrica del documento. Las afirmaciones se respaldaron con datos extraídos del build y de la inspección de los paquetes; lo no verificado se consignó explícitamente como pendiente de la sesión de laboratorio.
+- **Incorporación al repositorio** del análisis de dependencias (`docs/dependencias/analisis.md`), las secciones de la propuesta (`docs/propuesta/secciones-rol-b.md`) y la entrada 6 de esta bitácora.
+- **Higiene del repositorio.** Se retiraron del control de versiones los artefactos generados por `bitbake -g` (`task-depends.dot` y `pn-buildlist`, 38 033 líneas en conjunto) por ser reproducibles con un comando, conservando el manifiesto de la imagen por su valor documental. Se añadieron al `.gitignore` las capas que kas clona dentro del repositorio (`bitbake`, `openembedded-core`, `meta-yocto`, `meta-openembedded`, `meta-raspberrypi`) y el directorio `build`, que sumaban decenas de gigabytes sin excluir.
+
+**Productos obtenidos**
+
+- `docs/propuesta/secciones-rol-b.md` — secciones 6, 7 y 8 de la propuesta de diseño.
+- `docs/dependencias/analisis.md` — árbol de dependencias, peso por componente y dependencias en tiempo de ejecución.
+- `yocto/kas/jarvis.yml` con el BSP actualizado para PWM de dos canales e I2C.
+- `.gitignore` ampliado; repositorio sin archivos sin rastrear.
+- Cuatro commits publicados en la rama `Daniel`: `cef4ee4`, `ababaa8`, `e386f80` y `f26bce2`.
+
+**Datos medidos**
+
+- Paquete `ollama-bin`: 16 MB comprimido, aproximadamente 49 MB una vez extraído, frente a un tarball oficial de 1.5 GB. La diferencia corresponde a los backends CUDA excluidos por la receta, inaplicables en la Raspberry Pi 4.
+
+**Problemas encontrados y solución**
+
+- **`rpm` no está disponible en el host.** La verificación del paquete con `rpm -qlp` devolvió una salida vacía porque Ubuntu no incluye la herramienta. Se resolvió con `rpm2cpio | cpio -idmv`, que extrae el paquete sin requerirla.
+- **Capas de Yocto sin excluir del control de versiones.** kas clona las cinco capas base dentro del directorio del repositorio, y ninguna figuraba en `.gitignore`. Un `git add -A` habría intentado versionar decenas de gigabytes en un repositorio público. Se añadieron al `.gitignore` junto con el directorio de build.
+- **Incompatibilidad entre el overlay configurado y el nuevo diseño de iluminación.** El driver `gpio-led` reserva el pin en modo conmutado y no expone control de ciclo de trabajo, por lo que resultaba incompatible con el control de color e intensidad. Se sustituyó por el overlay de PWM.
+
+**Pendiente derivado**
+
+- La imagen aún no incluye una receta para el PWM por software (`pigpio` o equivalente), necesaria para los cuatro canales que no cubren los dos de hardware.
+
+**Referencias consultadas**
+
+- Raspberry Pi — overlays del árbol de dispositivos (`pwm-2chan`, `i2c_arm`): https://github.com/raspberrypi/firmware/blob/master/boot/overlays/README
+- Documentación del subsistema PWM de Linux (`/sys/class/pwm/`): https://docs.kernel.org/driver-api/pwm.html
+
+---
+
+## Pendientes para la siguiente sesión (laboratorio, con hardware)
+
+**Verificación de la plataforma**
+- Flashear `jarvis-image` y verificar arranque, Wi-Fi, servicios y RAM disponible.
+- Comprobar que ambos modelos quedaron en `/usr/share/ollama/models` y que `ollama.service` los carga sin acceder a la MicroSD.
+- Medir `/proc/diskstats` antes y después de varias órdenes para verificar la regla de oro R1.
+- Desconectar la red y repetir las órdenes para verificar la regla de oro R2.
+
+**Medición del carril de inferencia (riesgo principal)**
+- Medir `tev1:0.8b` sobre ARM64: latencia por etapa, memoria residente y temperatura del SoC.
+- Medir `llama3.2:1b` en las mismas condiciones y evaluar si ambos modelos residentes caben en memoria.
+- Comparar contra el benchmark del host x86 (16/16 aciertos, 1.57 s de latencia media).
+
+**Hardware**
+- Cablear y probar el DHT22 por IIO.
+- Cablear los dos LEDs RGB y probar el control por PWM.
+- Incorporar a la imagen la receta del PWM por software.
+
+**Entregables pendientes**
+- Documento de instalación paso a paso (entrega del 9 de noviembre).
+- Imagen release candidate y versión final.
