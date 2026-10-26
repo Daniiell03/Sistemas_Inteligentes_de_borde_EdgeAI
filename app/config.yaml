@@ -1,0 +1,100 @@
+# Configuracion del agente Jarvis
+# Se instala en /etc/jarvis/config.yaml
+#
+# Todo lo que puede cambiar sin reconstruir la imagen vive aqui. Cambiar de
+# modelo, ajustar el umbral de confianza o mover un limite es editar este
+# archivo y reiniciar el servicio:  systemctl restart jarvis
+
+# --------------------------------------------------------------------------
+# Motores de inferencia
+# --------------------------------------------------------------------------
+inferencia:
+  servidor: "http://127.0.0.1:11434"
+  timeout_s: 120
+
+  # Carril de decision: elige entre opciones tipadas y reporta probabilidad.
+  # No genera texto. Resuelve la mayoria de las ordenes.
+  decision:
+    modelo: "tev1:0.8b"
+    endpoint: "/v1/systemone"
+
+  # Carril generativo: redacta lenguaje natural. Solo se invoca cuando la
+  # herramienta seleccionada lo requiere.
+  #
+  # La velocidad de generacion en Raspberry Pi 4 esta limitada por el ancho de
+  # banda de memoria: aproximadamente 3.6 / (tamano del modelo en GiB) tokens
+  # por segundo. Por eso max_tokens es bajo y los prompts piden brevedad.
+  # Dejar 'modelo' vacio deshabilita el carril generativo: el sistema opera
+  # con el catalogo reducido a operaciones de decision.
+  generativo:
+    modelo: "llama3.2:1b"
+    endpoint: "/api/chat"
+    max_tokens: 80
+    temperatura: 0.4
+
+# --------------------------------------------------------------------------
+# Agente coordinador
+# --------------------------------------------------------------------------
+agente:
+  # Maximo de vueltas del ciclo percibir-decidir-actuar para una sola orden.
+  # El caso compuesto mas largo del catalogo necesita tres; cinco deja margen
+  # y garantiza terminacion.
+  max_iteraciones: 5
+
+  # Confianza minima para actuar. Se calcula como el MINIMO de las dos etapas
+  # de clasificacion: una clasificacion de dominio dudosa invalida la eleccion
+  # de accion, porque el conjunto de candidatas ya era el equivocado.
+  #
+  # Por debajo de este valor el sistema responde que no entendio en lugar de
+  # ejecutar algo equivocado. Calibrar con el banco de medicion
+  # (tools/medir_borde.py), que reporta la distribucion de confianza.
+  umbral_confianza: 0.45
+
+  # Las acciones marcadas como riesgosas por el router exigen un CONFIRM
+  # explicito del usuario antes de ejecutarse.
+  exigir_confirmacion_en_riesgo: true
+
+  # Tiempo que una confirmacion pendiente sigue siendo valida.
+  confirmacion_vigencia_s: 120
+
+# --------------------------------------------------------------------------
+# Interfaz con el cliente
+# --------------------------------------------------------------------------
+servidor:
+  # 0.0.0.0 permite que el cliente de la computadora alcance la Pi por la LAN.
+  direccion: "0.0.0.0"
+  puerto: 8000
+
+# --------------------------------------------------------------------------
+# Persistencia
+# --------------------------------------------------------------------------
+estado:
+  ruta_db: "/var/lib/jarvis/jarvis.db"
+  # Muestras del sensor que se conservan para consultas historicas.
+  historico_ambiente_max: 2000
+
+# --------------------------------------------------------------------------
+# Hardware
+# --------------------------------------------------------------------------
+hardware:
+  # false usa la implementacion real (PWM y GPIO por chardev);
+  # true usa la implementacion simulada, util para probar sin perifericos.
+  simular: false
+
+  iluminacion:
+    # true para LEDs de anodo comun (los pines drenan corriente).
+    anodo_comun: false
+    habitaciones: ["sala", "cuarto"]
+
+  sensor:
+    periodo_muestreo_s: 2.5
+
+# --------------------------------------------------------------------------
+# Registro
+# --------------------------------------------------------------------------
+registro:
+  nivel: "INFO"
+  # journald es volatil en esta imagen: nada se escribe en la MicroSD.
+  destino: "journal"
+  # Registrar cada decision con su confianza alimenta la calibracion del umbral.
+  registrar_decisiones: true
