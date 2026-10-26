@@ -1,0 +1,16 @@
+yocto/kas/wifi-local.yml
+yocto/meta-edgeai/recipes-connectivity/wifi-config/files/wpa_supplicant-wlan0.conf
+__pycache__/
+*.pyc
+docs/dependencias/task-depends.dot
+docs/dependencias/pn-buildlist
+
+# Capas de Yocto clonadas por kas (se obtienen con kas checkout)
+/bitbake/
+/openembedded-core/
+/meta-yocto/
+/meta-openembedded/
+/meta-raspberrypi/
+
+# Directorio de build
+/build/

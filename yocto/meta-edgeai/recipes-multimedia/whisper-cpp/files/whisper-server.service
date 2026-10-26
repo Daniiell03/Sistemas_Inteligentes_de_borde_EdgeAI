@@ -1,0 +1,11 @@
+[Unit]
+Description=Servidor de transcripcion whisper.cpp (Jarvis)
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/default/whisper-server
+ExecStart=/usr/bin/whisper-server -m ${WHISPER_MODEL} -l ${WHISPER_LANG} -t ${WHISPER_THREADS} --host 127.0.0.1 --port 8080
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

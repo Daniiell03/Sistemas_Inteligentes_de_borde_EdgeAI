@@ -1,0 +1,52 @@
+[Unit]
+Description=Agente coordinador de Jarvis (EdgeAI)
+Documentation=https://github.com/Daniiell03/Sistemas_Inteligentes_de_borde_EdgeAI
+
+# El agente no arranca hasta que ambos modelos estan residentes en memoria:
+# jarvis-warmup.service es de tipo oneshot con RemainAfterExit, de modo que
+# systemd lo considera activo solo cuando el calentamiento termino bien.
+After=ollama.service jarvis-warmup.service
+Requires=ollama.service
+Wants=jarvis-warmup.service
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 -m jarvis.api --config /etc/jarvis/config.yaml
+
+# Estado persistente: systemd crea y da permisos a /var/lib/jarvis
+StateDirectory=jarvis
+StateDirectoryMode=0750
+
+# Sin buffering: las trazas aparecen en el journal al momento, no al cerrar
+Environment=PYTHONUNBUFFERED=1
+
+Restart=on-failure
+RestartSec=5
+
+# --- Aislamiento ----------------------------------------------------------
+# El agente escribe en GPIO, PWM y su base de datos; nada mas. Las
+# restricciones que siguen acotan el dano de un fallo sin impedir esas tres.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+
+# Rutas que si deben ser escribibles: el subsistema PWM se controla
+# escribiendo en sysfs, que ProtectSystem=strict deja en solo lectura.
+ReadWritePaths=/sys/class/pwm /sys/devices
+
+# Acceso a los dispositivos de caracteres de GPIO
+DeviceAllow=/dev/gpiochip0 rw
+DeviceAllow=/dev/gpiochip1 rw
+
+# El agente solo habla con Ollama en localhost y atiende al cliente en la LAN
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
