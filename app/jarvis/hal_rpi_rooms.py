@@ -1,24 +1,24 @@
-"""Implementacion real de la iluminacion por habitaciones (Rol B).
+"""Implementacion real de la iluminacion por zonas (Rol B).
 
 Se instala en app/jarvis/hal_rpi_rooms.py.
 
 Hardware: dos LEDs RGB de anodo o catodo comun conectados por jumpers a
-una protoboard, cada uno representando una habitacion.
+una protoboard, cada uno representando una zona.
 
 REPARTO DE CANALES
 ------------------
-La Raspberry Pi 4 expone dos canales de PWM por hardware. Dos habitaciones
+La Raspberry Pi 4 expone dos canales de PWM por hardware. Dos zonas
 en RGB requieren seis canales:
 
-    SALA    rojo   -> PWM0 (GPIO12)   intensidad continua
+    FRENTE  rojo   -> PWM0 (GPIO12)   intensidad continua
             verde  -> GPIO16          conmutado
             azul   -> GPIO20          conmutado
-    CUARTO  rojo   -> PWM1 (GPIO13)   intensidad continua
+    FONDO   rojo   -> PWM1 (GPIO13)   intensidad continua
             verde  -> GPIO21          conmutado
             azul   -> GPIO26          conmutado
 
 Los canales conmutados aceptan solo encendido y apagado, de modo que la
-paleta efectiva se reduce a ocho combinaciones por habitacion, moduladas
+paleta efectiva se reduce a ocho combinaciones por zona, moduladas
 en intensidad por el canal rojo.
 
 No se usa PWM por software en espacio de usuario: depende del planificador
@@ -186,12 +186,12 @@ class _PwmChannel:
 
 
 class PwmRoomLight(RoomLight):
-    """Dos habitaciones RGB: canal rojo con intensidad, verde y azul conmutados."""
+    """Dos zonas RGB: canal rojo con intensidad, verde y azul conmutados."""
 
-    # habitacion -> (indice de PWM para rojo, GPIO verde, GPIO azul)
+    # zona -> (indice de PWM para rojo, GPIO verde, GPIO azul)
     LAYOUT: Dict[Room, tuple] = {
-        Room.SALA:   (0, 16, 20),
-        Room.CUARTO: (1, 21, 26),
+        Room.FRENTE:   (0, 16, 20),
+        Room.FONDO: (1, 21, 26),
     }
 
     # Umbral sobre el que un canal conmutado se considera encendido
@@ -227,7 +227,7 @@ class PwmRoomLight(RoomLight):
     def set(self, room: Room, color: Color, brightness: float = 1.0) -> None:
         if room not in self.LAYOUT:
             raise ValueError(
-                f"habitacion no disponible: {room.value}. "
+                f"zona no disponible: {room.value}. "
                 f"Disponibles: {', '.join(r.value for r in sorted(self.LAYOUT))}"
             )
         brightness = max(0.0, min(1.0, brightness))
