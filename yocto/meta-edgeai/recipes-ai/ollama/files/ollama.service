@@ -6,8 +6,19 @@ After=network.target
 ExecStart=/usr/bin/ollama serve
 Environment=OLLAMA_HOST=127.0.0.1:11434
 Environment=OLLAMA_MODELS=/usr/share/ollama/models
+
+# Los modelos permanecen en memoria indefinidamente tras la primera carga.
 Environment=OLLAMA_KEEP_ALIVE=-1
+
+# Ambos modelos residentes a la vez. Sin esta variable, el servidor descarga
+# uno para cargar el otro y lo relee de la MicroSD, lo que viola la regla R1:
+# medido el 27/10/2026, 1254 MiB leidos del medio de arranque durante una
+# corrida que alterna los dos carriles de inferencia.
+Environment=OLLAMA_MAX_LOADED_MODELS=2
+
+# Una sola solicitud en vuelo: la plataforma no tiene margen para concurrencia.
 Environment=OLLAMA_NUM_PARALLEL=1
+
 # HOME en RAM: la llave que Ollama genera al iniciar no se escribe en la SD
 Environment=HOME=/run/ollama
 RuntimeDirectory=ollama

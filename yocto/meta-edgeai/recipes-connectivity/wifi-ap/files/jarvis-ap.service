@@ -1,0 +1,31 @@
+[Unit]
+Description=Punto de acceso inalambrico de Jarvis
+Documentation=https://github.com/Daniiell03/Sistemas_Inteligentes_de_borde_EdgeAI
+
+# La interfaz debe existir y tener su direccion antes de emitir la red.
+After=systemd-networkd.service
+Wants=systemd-networkd.service
+
+# El cliente inalambrico y el punto de acceso no pueden compartir interfaz.
+Conflicts=wpa_supplicant@wlan0.service
+
+[Service]
+Type=simple
+
+# Una misma unidad arranca el emisor y el asignador de direcciones: si
+# cualquiera de los dos falla, la red no sirve, de modo que no tiene
+# sentido que uno siga activo sin el otro.
+ExecStartPre=/sbin/ip link set wlan0 up
+ExecStart=/usr/sbin/hostapd /etc/hostapd.conf
+ExecStartPost=/bin/sh -c 'sleep 2; /usr/bin/dnsmasq --conf-dir=/etc/dnsmasq.d --keep-in-foreground &'
+
+ExecStopPost=/bin/sh -c 'killall dnsmasq 2>/dev/null || true'
+
+Restart=on-failure
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
