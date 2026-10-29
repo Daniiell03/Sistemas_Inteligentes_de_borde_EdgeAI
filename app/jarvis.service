@@ -11,7 +11,14 @@ Wants=jarvis-warmup.service
 
 [Service]
 Type=exec
-ExecStart=/usr/bin/python3 -m jarvis.api --config /etc/jarvis/config.yaml
+ExecStart=/usr/bin/python3 -m jarvis
+
+# Parametros del portal y del almacen. Se pasan por entorno y no por
+# archivo de configuracion: son cinco valores, y leer YAML exigiria
+# python3-pyyaml en la imagen sin ninguna ganancia.
+Environment=JARVIS_HOST=0.0.0.0
+Environment=JARVIS_PORT=8000
+Environment=JARVIS_DB=/var/lib/jarvis/jarvis.db
 
 # Estado persistente: systemd crea y da permisos a /var/lib/jarvis
 StateDirectory=jarvis
