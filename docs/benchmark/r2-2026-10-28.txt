@@ -1,0 +1,24 @@
+=== VERIFICACION R2 — ninguna operacion requiere conexion externa ===
+Wed Oct 28 22:48:46 UTC 2026
+
+--- equipo ---
+Linux jarvis 6.18.33-v8 #1 SMP PREEMPT Thu May 28 02:31:14 UTC 2026 aarch64 GNU/Linux
+
+--- rutas con la ruta por defecto eliminada ---
+172.20.10.0/28 dev wlan0 scope link  src 172.20.10.2  metric 1024 
+172.20.10.1 dev wlan0 scope link  src 172.20.10.2  metric 1024 
+
+--- alcance a internet ---
+PING 8.8.8.8 (8.8.8.8): 56 data bytes
+ping: sendto: Network is unreachable
+
+--- consulta al modelo de decision, sin salida a internet ---
+{"model":"tev1:0.8b","answers":{"accion":{"type":"choice","choice":"AMBIENTE","probabilities":{"LUZ_ON":0.012632359134416094,"LUZ_OFF":0.004418629154200754,"LUZ_MODO":0.0036641645120532814,"AMBIENTE":0.7096276029247135,"ENTREGA_REG":0.00047344857102641643,"ENTREGA_VER":0.007252493387367627,"AGENDA":0.00100136769828619,"RESUMEN":0.004063929256052121,"NADA":0.2568660053618838},"confidence":0.6733310532903026}},"usage":{"input_tokens":277,"output_tokens":0}}
+real	0m14.997s
+user	0m0.007s
+sys	0m0.008s
+
+--- ruta restaurada ---
+default via 172.20.10.1 dev wlan0  metric 1024 
+172.20.10.0/28 dev wlan0 scope link  src 172.20.10.2  metric 1024 
+172.20.10.1 dev wlan0 scope link  src 172.20.10.2  metric 1024 

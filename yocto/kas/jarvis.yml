@@ -52,5 +52,9 @@ local_conf_header:
     BB_HASHSERVE_DB_DIR = "${SSTATE_DIR}"
     hostname:pn-base-files = "jarvis"
     RPI_EXTRA_CONFIG = "dtoverlay=dht11,gpiopin=4\ndtparam=i2c_arm=on\ndtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4"
+    # Los overlays declarados en config.txt deben ademas compilarse y
+    # desplegarse: RPI_EXTRA_CONFIG solo escribe texto. Sin esto el
+    # firmware pide un .dtbo inexistente y falla en silencio.
+    RPI_KERNEL_DEVICETREE_OVERLAYS:append = " overlays/dht11.dtbo overlays/pwm-2chan.dtbo"
     # Solo para desarrollo: root sin contraseña y SSH
     EXTRA_IMAGE_FEATURES += "ssh-server-openssh allow-empty-password empty-root-password allow-root-login"

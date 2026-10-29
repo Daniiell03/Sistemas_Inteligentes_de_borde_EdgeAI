@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis Aula - EdgeAI</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #1e3a8a; font-size: 1.5rem; text-align: center; }
+        .chat-box { height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; background: #fafafa; border-radius: 4px; }
+        .message { margin-bottom: 10px; padding: 8px; border-radius: 4px; }
+        .user-msg { background-color: #dbeafe; color: #1e3a8a; text-align: right; margin-left: 20%; }
+        .sys-msg { background-color: #e5e7eb; color: #374151; margin-right: 20%; }
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; }
+        select, input, button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
+        input { flex: 1; }
+        button { background-color: #1d4ed8; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:disabled { background-color: #9ca3af; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Portal Jarvis - Asistente de Aula</h1>
+        
+        <div class="controls">
+            <select id="userRole">
+                <option value="estudiante">Rol: Estudiante</option>
+                <option value="profesor">Rol: Profesor</option>
+            </select>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="message sys-msg">Sistema iniciado. 100% Offline. Escriba su orden.</div>
+        </div>
+
+        <div class="controls">
+            <input type="text" id="commandInput" placeholder="Ej. Registra mi entrega..." onkeypress="handleEnter(event)">
+            <button id="sendBtn" onclick="sendCommand()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const inputField = document.getElementById('commandInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const roleSelect = document.getElementById('userRole');
+
+        function appendMessage(text, isUser) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isUser ? 'user-msg' : 'sys-msg'}`;
+            msgDiv.innerText = text;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function sendCommand() {
+            const text = inputField.value.trim();
+            if (!text) return;
+
+            const role = roleSelect.value;
+            appendMessage(text, true);
+            inputField.value = '';
+            
+            // UI Feedback: Latencia asíncrona
+            sendBtn.disabled = true;
+            appendMessage("Procesando intención en el borde...", false);
+            
+            try {
+                const response = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: role, command: text })
+                });
+                
+                const data = await response.json();
+                
+                // Eliminamos el mensaje de "procesando" (último sys-msg)
+                chatBox.removeChild(chatBox.lastChild);
+                
+                if (response.ok) {
+                    appendMessage(data.message || JSON.stringify(data), false);
+                } else {
+                    appendMessage(`Error: ${data.detail}`, false);
+                }
+            } catch (error) {
+                chatBox.removeChild(chatBox.lastChild);
+                appendMessage("Error de conexión con el nodo Edge.", false);
+            }
+            sendBtn.disabled = false;
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendCommand();
+        }
+    </script>
+</body>
+</html>

@@ -130,7 +130,7 @@ def main() -> int:
         luces.all_off()
 
         print("\n4. Escenas")
-        for escena in ("cine", "despertar", "dormir", "enfoque", "salir"):
+        for escena in ("proyeccion", "lectura", "grupos", "examen", "salida"):
             print(f"   escena '{escena}'")
             luces.apply_scene(escena)
             time.sleep(args.pausa * 1.5)

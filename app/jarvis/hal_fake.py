@@ -8,7 +8,7 @@ Uso:
     from jarvis.hal_fake import FakeRoomLight, FakeTempHumSensor
 
     luces = FakeRoomLight()
-    luces.turn_on(Room.SALA)
+    luces.turn_on(Room.FRENTE)
     luces.apply_scene("cine")
 
 Para pruebas automaticas, FakeRoomLight.history guarda cada cambio.
@@ -24,12 +24,12 @@ from .hal_rooms import PALETTE, Color, Room, RoomLight, RoomState
 class FakeRoomLight(RoomLight):
     """Iluminacion simulada: imprime el estado y lo registra.
 
-    Por defecto expone las dos habitaciones de la demostracion. Para probar
+    Por defecto expone las dos zonas de la demostracion. Para probar
     el diseno objetivo de cuatro:  FakeRoomLight(rooms=set(Room))
     """
 
     def __init__(self, rooms: Optional[set] = None, verbose: bool = True):
-        self._rooms = frozenset(rooms or {Room.SALA, Room.CUARTO})
+        self._rooms = frozenset(rooms or {Room.FRENTE, Room.FONDO})
         self._state: Dict[Room, RoomState] = {
             r: RoomState(PALETTE["apagado"], 0.0) for r in self._rooms
         }
@@ -42,7 +42,7 @@ class FakeRoomLight(RoomLight):
     def set(self, room: Room, color: Color, brightness: float = 1.0) -> None:
         if room not in self._rooms:
             raise ValueError(
-                f"habitacion no disponible: {room.value}. "
+                f"zona no disponible: {room.value}. "
                 f"Disponibles: {', '.join(r.value for r in sorted(self._rooms))}"
             )
         brightness = max(0.0, min(1.0, brightness))
@@ -123,13 +123,13 @@ if __name__ == "__main__":
 
     luces = FakeRoomLight()
     print("Encender la sala:")
-    luces.turn_on(Room.SALA)
+    luces.turn_on(Room.FRENTE)
 
     print("\nPoner el cuarto en azul al 40%:")
-    luces.set(Room.CUARTO, PALETTE["azul"], 0.4)
+    luces.set(Room.FONDO, PALETTE["azul"], 0.4)
 
     print("\nAtenuar la sala:")
-    luces.dim(Room.SALA)
+    luces.dim(Room.FRENTE)
 
     print("\nEscena 'cine':")
     luces.apply_scene("cine")

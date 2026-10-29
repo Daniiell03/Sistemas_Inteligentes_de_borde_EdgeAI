@@ -1,0 +1,123 @@
+========================================================================
+MEDICION DEL BORDE — Proyecto II EdgeAI 'Jarvis'
+Fecha: 2026-10-28T22:17:26
+Equipo: Raspberry Pi 4 Model B Rev 1.5
+Kernel: 6.18.33-v8
+Catalogo: 9 operaciones, una etapa
+========================================================================
+
+ESTADO INICIAL
+  Temperatura del SoC : 42.4 C
+  Throttling          : no disponible
+  Memoria total       : 7806 MiB
+  Memoria disponible  : 4653 MiB
+  Modelos presentes   : llama3.2:1b, tev1:0.8b
+
+Calentando el modelo de decision (no se mide)...
+  primera consulta: 22.41s  (incluye la carga del modelo)
+
+CARRIL DE DECISION — una etapa
+------------------------------------------------------------------------
+  tiempo  tokens  tok/s  conf  resultado
+------------------------------------------------------------------------
+  22.44s     531   23.7  0.96  OK    LUZ_ON
+                         «encende la luz del frente»
+  22.43s     531   23.7  0.53  OK    LUZ_ON
+                         «prenda las luces por favor»
+  22.61s     543   24.0  0.98  OK    LUZ_ON
+                         «necesito iluminacion en la zona de trabajo»
+  22.45s     531   23.6  0.98  OK    LUZ_OFF
+                         «apaga la luz del fondo»
+  22.39s     528   23.6  1.00  OK    LUZ_OFF
+                         «apaga todas las luces»
+  22.44s     531   23.7  0.80  OK    LUZ_OFF
+                         «ya no necesitamos la iluminacion»
+  22.52s     537   23.8  0.43  FALLA NADA  (esperado LUZ_MODO)
+                         «pone el aula en modo proyeccion»
+  22.38s     528   23.6  0.45  FALLA NADA  (esperado LUZ_MODO)
+                         «cambia a modo lectura»
+  22.50s     537   23.9  0.71  FALLA NADA  (esperado LUZ_MODO)
+                         «activa la escena de trabajo en grupo»
+  22.52s     522   23.2  0.68  FALLA NADA  (esperado AMBIENTE)
+                         «a cuanto estamos»
+  22.55s     531   23.5  0.67  OK    AMBIENTE
+                         «que temperatura hay en el aula»
+  22.50s     537   23.9  0.57  OK    AMBIENTE
+                         «hace mucho calor aqui, cuanto marca»
+  22.44s     531   23.7  1.00  OK    ENTREGA_REG
+                         «registra la entrega de Maria»
+  22.61s     540   23.9  0.58  OK    ENTREGA_REG
+                         «anota que Jose entrego el laboratorio tres»
+  22.49s     531   23.6  0.59  OK    ENTREGA_REG
+                         «marca la tarea como recibida»
+  22.40s     528   23.6  0.53  OK    ENTREGA_VER
+                         «quien ya entrego»
+  22.35s     525   23.5  0.92  OK    ENTREGA_VER
+                         «cuantas entregas van»
+  22.50s     537   23.9  0.98  OK    ENTREGA_VER
+                         «mostrame el estado de las entregas»
+  22.38s     528   23.6  0.67  OK    AGENDA
+                         «que hay programado hoy»
+  22.59s     540   23.9  0.92  OK    AGENDA
+                         «cual es la agenda de la sesion»
+  22.53s     531   23.6  0.90  FALLA NADA  (esperado AGENDA)
+                         «que sigue despues de esto»
+  22.52s     537   23.8  0.92  OK    RESUMEN
+                         «hacemos un resumen de la clase»
+  22.52s     537   23.8  0.91  OK    RESUMEN
+                         «resumime como fue la sesion»
+  22.58s     540   23.9  0.60  FALLA ENTREGA_REG  (esperado RESUMEN)
+                         «dame un cierre de lo que hicimos»
+  22.48s     534   23.8  0.84  OK    NADA
+                         «asdfgh qwerty zxcvb»
+  22.48s     534   23.8  0.32  OK    NADA
+                         «cuanto cuesta un carro en Japon»
+  22.44s     531   23.7  0.62  OK    NADA
+                         «pone musica de los ochenta»
+------------------------------------------------------------------------
+Casos medidos        : 27 de 27  (0 con error)
+Acierto de accion    : 21/27  (77.8 %)
+Latencia p50/p95/max : 22.49s / 22.61s / 22.61s
+Latencia media       : 22.48s
+Confianza min/p50    : 0.32 / 0.71
+  Umbral sugerido    : por debajo de 0.32 se descartarian aciertos
+
+LEY DE LATENCIA  t = n / V
+------------------------------------------------------------------------
+  Tokens por consulta (media)  : 533
+  Velocidad medida             : 23.7 tok/s
+  Referencia del 27/10/2026    : 18.5 tok/s
+  Desvio                       : 28.1 %
+  Presupuesto para 15 s        : 356 tokens
+
+CARRIL GENERATIVO — salida acotada a 40 tokens
+------------------------------------------------------------------------
+   9.08s  carga 0.0s · prompt 2.1s · genera 7.0s (19 tok)
+          -> En total, 20 estudiantes tuvieron el placer de ser parte de este proyecto.
+   7.97s  carga 0.0s · prompt 2.1s · genera 5.8s (16 tok)
+          -> No tengo información sobre una sesión específica con 3 laboratorios.
+  13.73s  carga 0.0s · prompt 2.5s · genera 11.2s (30 tok)
+          -> No proporcioné información previa sobre un aula ni sobre las condiciones atmosféricas. ¿Pu
+------------------------------------------------------------------------
+Generativo p50/max   : 9.08s / 13.73s
+
+COMPARACION DE CARRILES
+------------------------------------------------------------------------
+  Decision   p50 = 22.49s
+  Generativo p50 = 9.08s
+  El carril de decision es 0.4x mas lento que el generativo
+
+ESTADO FINAL
+------------------------------------------------------------------------
+  Temperatura : 42.4 C -> 73.5 C  (delta +31.2)
+  Throttling  : no disponible
+  Memoria disponible : 4653 -> 4631 MiB  (consumo 22 MiB)
+  RSS del servidor con el modelo de decision : 2832 MiB (3 procesos)
+  RSS del servidor con ambos modelos         : 2835 MiB
+
+REGLA R1 — ningun modelo se lee de la MicroSD tras el arranque
+------------------------------------------------------------------------
+  mmcblk0: 8 lecturas, 504 sectores (0.25 MiB)
+    CUMPLE: lectura despreciable frente al tamano de los modelos
+
+========================================================================

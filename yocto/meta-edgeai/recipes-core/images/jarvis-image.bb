@@ -10,6 +10,7 @@ IMAGE_INSTALL:append = " \
     alsa-utils libgpiod-tools \
     python3 libstdc++ whisper-cpp jarvis-rootfs-config \
     ollama-bin ollama-model-tev1 ollama-model-llama32 \
+    jarvis-app \
     curl htop \
 "
 

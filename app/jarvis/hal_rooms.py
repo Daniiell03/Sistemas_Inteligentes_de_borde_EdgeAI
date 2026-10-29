@@ -1,4 +1,4 @@
-"""Extension del contrato de la HAL: iluminacion por habitaciones (Rol B).
+"""Extension del contrato de la HAL: iluminacion por zonas (Rol B).
 
 Este modulo se agrega a app/jarvis/hal.py. Define la interfaz que la
 aplicacion (Rol A) consume para controlar la iluminacion, sin conocer
@@ -13,16 +13,18 @@ from typing import Dict, Optional
 
 
 class Room(str, Enum):
-    """Habitaciones del sistema.
+    """Zonas de iluminacion del aula.
 
-    La demostracion implementa SALA y CUARTO; COCINA y OFICINA estan
-    declaradas porque el diseno objetivo contempla cuatro habitaciones.
+    La demostracion implementa FRENTE (zona de proyeccion) y FONDO (zona
+    de trabajo); LATERAL y ENTRADA estan declaradas porque el diseno
+    objetivo contempla cuatro zonas, limitado a dos por los canales de
+    PWM por hardware disponibles (RH-05).
     Una implementacion puede no soportarlas: ver RoomLight.available().
     """
-    SALA = "sala"
-    CUARTO = "cuarto"
-    COCINA = "cocina"
-    OFICINA = "oficina"
+    FRENTE = "frente"
+    FONDO = "fondo"
+    LATERAL = "lateral"
+    ENTRADA = "entrada"
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ PALETTE: Dict[str, Color] = {
 
 @dataclass(frozen=True)
 class RoomState:
-    """Estado de una habitacion."""
+    """Estado de una zona."""
     color: Color
     brightness: float          # 0.0 a 1.0
 
@@ -69,26 +71,39 @@ class RoomState:
         return self.brightness > 0.0 and (self.color.r + self.color.g + self.color.b) > 0.0
 
 
-# Escenas: estado objetivo por habitacion. Una habitacion ausente se apaga.
+# Escenas del aula: estado objetivo por zona. Una zona ausente se apaga.
+#
+# Las escenas usan blanco con intensidad variable en lugar de color pleno:
+# solo el canal rojo admite intensidad continua (PWM por hardware), mientras
+# que verde y azul son conmutados, de modo que una escena con color a baja
+# intensidad degenera en rojo. Ajustar con los LEDs a la vista.
 SCENES: Dict[str, Dict[Room, RoomState]] = {
-    "cine": {
-        Room.SALA: RoomState(PALETTE["azul"], 0.15),
+    # Pantalla visible al frente, luz suficiente al fondo para tomar notas.
+    "proyeccion": {
+        Room.FONDO: RoomState(PALETTE["blanco"], 0.4),
     },
-    "despertar": {
-        Room.CUARTO: RoomState(PALETTE["ambar"], 0.6),
+    # Lectura individual: ambas zonas al maximo.
+    "lectura": {
+        Room.FRENTE: RoomState(PALETTE["blanco"], 1.0),
+        Room.FONDO: RoomState(PALETTE["blanco"], 1.0),
     },
-    "dormir": {
-        Room.CUARTO: RoomState(PALETTE["ambar"], 0.1),
+    # Trabajo en grupo: iluminacion pareja, intensidad media.
+    "grupos": {
+        Room.FRENTE: RoomState(PALETTE["blanco"], 0.6),
+        Room.FONDO: RoomState(PALETTE["blanco"], 0.6),
     },
-    "salir": {},
-    "enfoque": {
-        Room.SALA: RoomState(PALETTE["frio"], 1.0),
+    # Examen: maxima iluminacion uniforme, sin distracciones de color.
+    "examen": {
+        Room.FRENTE: RoomState(PALETTE["blanco"], 1.0),
+        Room.FONDO: RoomState(PALETTE["blanco"], 1.0),
     },
+    # Fin de sesion: todo apagado.
+    "salida": {},
 }
 
 
 class RoomLight(ABC):
-    """Iluminacion por habitacion.
+    """Iluminacion por zona.
 
     La implementacion real usa PWM sobre sysfs; la falsa imprime el estado.
     La aplicacion no distingue entre ambas.
@@ -100,14 +115,14 @@ class RoomLight(ABC):
 
     @abstractmethod
     def set(self, room: Room, color: Color, brightness: float = 1.0) -> None:
-        """Fija color y brillo de una habitacion.
+        """Fija color y brillo de una zona.
 
-        Lanza ValueError si la habitacion no esta en available().
+        Lanza ValueError si la zona no esta en available().
         """
 
     @abstractmethod
     def get(self, room: Room) -> Optional[RoomState]:
-        """Estado actual, o None si la habitacion no esta disponible."""
+        """Estado actual, o None si la zona no esta disponible."""
 
     def turn_on(self, room: Room, color: Optional[Color] = None) -> None:
         self.set(room, color or PALETTE["calido"], 1.0)
@@ -126,7 +141,7 @@ class RoomLight(ABC):
             self.turn_off(room)
 
     def apply_scene(self, scene: str) -> None:
-        """Aplica una escena. Las habitaciones no incluidas se apagan."""
+        """Aplica una escena. Las zonas no incluidas se apagan."""
         if scene not in SCENES:
             raise ValueError(f"escena desconocida: {scene}")
         target = SCENES[scene]
@@ -138,5 +153,5 @@ class RoomLight(ABC):
                 self.set(room, st.color, st.brightness)
 
     def snapshot(self) -> Dict[Room, RoomState]:
-        """Estado de todas las habitaciones disponibles."""
+        """Estado de todas las zonas disponibles."""
         return {r: self.get(r) for r in self.available() if self.get(r) is not None}
