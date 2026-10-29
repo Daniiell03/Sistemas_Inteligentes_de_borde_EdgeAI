@@ -279,13 +279,14 @@ class Agente:
             return Respuesta(Parada.ERROR,
                              "Todavía no tengo una lectura válida del sensor.",
                              accion="AMBIENTE")
-        self.almacen.registrar_ambiente(lectura.temperature, lectura.humidity)
+        self.almacen.registrar_ambiente(lectura.temperature_c, lectura.humidity_pct)
         return Respuesta(
             Parada.CUMPLIDA,
-            f"En el aula hay {lectura.temperature:.1f} grados y "
-            f"{lectura.humidity:.0f} por ciento de humedad.",
+            f"En el aula hay {lectura.temperature_c:.1f} grados y "
+            f"{lectura.humidity_pct:.0f} por ciento de humedad.",
             accion="AMBIENTE",
-            datos={"temperatura": lectura.temperature, "humedad": lectura.humidity})
+            datos={"temperatura": lectura.temperature_c,
+                   "humedad": lectura.humidity_pct})
 
     def _ver_entregas(self, rol: str, orden: str) -> Respuesta:
         # RF-04: el estudiante ve lo suyo, el profesor ve todo.
