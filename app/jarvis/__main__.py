@@ -27,11 +27,13 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 
 from . import inferencia
 from .agente import Agente
+from .hal_rooms import PALETTE, Color, Room, RoomLight
 from .interfaces import ICoordinatorAgent
-from .persistencia import RUTA_POR_DEFECTO, Almacen
+from .persistencia import CADENCIA_AMBIENTE, RUTA_POR_DEFECTO, Almacen
 from .portal import DIRECCION_POR_DEFECTO, PUERTO_POR_DEFECTO, servir
 
 RUTA_PWM = "/sys/class/pwm"
@@ -71,6 +73,73 @@ def construir_hal():
     return FakeRoomLight(), FakeTempHumSensor()
 
 
+def arrancar_muestreo(sensor, almacen: Almacen) -> threading.Event:
+    """Persiste una lectura ambiental con la cadencia del almacen.
+
+    El sensor se muestrea solo: su implementacion real mantiene un hilo que
+    refresca la lectura en cache cada 2,5 s. Lo que falta es guardarla, y sin
+    eso el historico queda vacio y el resumen generativo no tiene de que
+    hablar: registrar_ambiente solo se invocaba cuando alguien preguntaba la
+    temperatura.
+
+    El hilo es demonio y despierta cada treinta segundos en lugar de dormir
+    los cinco minutos completos, para que el apagado no espere un ciclo
+    entero. La cadencia real la impone el almacen, que descarta las escrituras
+    prematuras.
+    """
+    alto = threading.Event()
+
+    def bucle() -> None:
+        while not alto.is_set():
+            try:
+                lectura = sensor.last_reading()
+                if lectura is not None:
+                    almacen.registrar_ambiente(lectura.temperature_c,
+                                               lectura.humidity_pct)
+            except Exception as e:
+                # Un fallo de sensor o de escritura no debe tumbar el servicio:
+                # la operacion AMBIENTE reportara el problema cuando se use.
+                print(f"aviso: fallo el muestreo ambiental: {e}", file=sys.stderr)
+            alto.wait(30.0)
+
+    threading.Thread(target=bucle, name="muestreo-ambiente", daemon=True).start()
+    print(f"muestreo ambiental cada {CADENCIA_AMBIENTE:.0f} s")
+    return alto
+
+
+def restaurar_iluminacion(luces: RoomLight, almacen: Almacen) -> None:
+    """Reaplica el estado de iluminacion guardado.
+
+    Tras un reinicio los canales arrancan apagados, mientras el almacen
+    conserva el ultimo estado conocido. Sin esta restauracion el sistema
+    afirma una cosa y el aula muestra otra, y la discrepancia aparece
+    justamente al reconectar el equipo, que es lo que ocurre durante la
+    demostracion de la regla R2.
+    """
+    guardado = almacen.estado_zonas()
+    if not guardado:
+        return
+    disponibles = {r.name: r for r in luces.available()}
+    restauradas = []
+    for nombre, estado in guardado.items():
+        zona = disponibles.get(nombre)
+        if zona is None:
+            continue  # zona del diseno objetivo que esta instalacion no controla
+        color = PALETTE.get(estado["color"])
+        if color is None:
+            continue
+        brillo = float(estado["brillo"])
+        try:
+            luces.set(zona, color, brillo)
+        except Exception as e:
+            print(f"aviso: no se pudo restaurar {nombre}: {e}", file=sys.stderr)
+            continue
+        if brillo > 0.0:
+            restauradas.append(f"{zona.value} {estado['color']} {brillo:.0%}")
+    if restauradas:
+        print("iluminacion restaurada:", ", ".join(restauradas))
+
+
 class AgenteCoordinador(ICoordinatorAgent):
     """Adapta el agente al contrato que consume el portal."""
 
@@ -103,8 +172,21 @@ def main() -> int:
     almacen = Almacen(ruta_db)
     print("almacen en", ruta_db)
 
+    restaurar_iluminacion(luces, almacen)
+    alto_muestreo = arrancar_muestreo(sensor, almacen)
+
     agente = AgenteCoordinador(Agente(luces, sensor, almacen))
-    servir(agente, direccion, puerto)
+    try:
+        servir(agente, direccion, puerto)
+    finally:
+        alto_muestreo.set()
+        for recurso in (sensor, luces):
+            cerrar = getattr(recurso, "close", None)
+            if cerrar is not None:
+                try:
+                    cerrar()
+                except Exception:
+                    pass
     return 0
 
 
