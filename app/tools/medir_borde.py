@@ -223,7 +223,18 @@ def post(ruta: str, cuerpo: dict):
 
 
 def decidir(state: str):
-    """Una sola etapa: accion y zona en la misma solicitud."""
+    """Una sola pregunta de accion.
+
+    La medicion del 28 de octubre mostro que cada pregunta tipada paga un
+    costo fijo de plantilla de unos 120 tokens, con independencia de cuantos
+    criterios lleve. Preguntar accion, zona y riesgo en la misma solicitud
+    costaba 533 tokens y 22,5 s; la accion sola cuesta 277 tokens y 15,0 s,
+    que es exactamente el presupuesto fijado en la propuesta.
+
+    La zona solo la necesitan tres de las nueve operaciones y se consulta
+    aparte (ver zona_de). El riesgo no se pregunta: lo determina el catalogo,
+    que sabe cuales operaciones son irreversibles.
+    """
     return post("/v1/systemone", {
         "model": MODELO_DECISION,
         "state": state,
@@ -231,11 +242,18 @@ def decidir(state: str):
             "accion": {"type": "choice",
                        "instructions": "Que accion pide el usuario",
                        "criteria": ACCIONES},
+        }})
+
+
+def zona_de(state: str):
+    """Segunda llamada, solo para operaciones de iluminacion: 144 tok, 7,6 s."""
+    return post("/v1/systemone", {
+        "model": MODELO_DECISION,
+        "state": state,
+        "questions": {
             "zona": {"type": "choice",
                      "instructions": "Que zona menciona",
                      "criteria": ZONAS},
-            "riesgo": {"type": "noul",
-                       "instructions": "Es una accion irreversible"},
         }})
 
 
@@ -335,7 +353,7 @@ def main() -> int:
     out(f"{'tiempo':>8} {'tokens':>7} {'tok/s':>6} {'conf':>5}  resultado")
     out("-" * 72)
 
-    tiempos, tokens, confs = [], [], []
+    tiempos, tokens, confs, resultados = [], [], [], []
     aciertos = errores = 0
 
     for frase, esperada in CASOS:
@@ -356,6 +374,8 @@ def main() -> int:
 
         bien = accion == esperada
         aciertos += bien
+        if conf is not None:
+            resultados.append((conf, bien))
         marca = "OK   " if bien else "FALLA"
         detalle = accion if bien else f"{accion}  (esperado {esperada})"
         vel = f"{n_tok/t:6.1f}" if n_tok else "     -"
@@ -372,7 +392,22 @@ def main() -> int:
         out(f"Latencia media       : {statistics.mean(tiempos):.2f}s")
         if confs:
             out(f"Confianza min/p50    : {min(confs):.2f} / {pct(confs,50):.2f}")
-            out(f"  Umbral sugerido    : por debajo de {min(confs):.2f} se descartarian aciertos")
+            out()
+            out("  Curva de intercambio del umbral de abstencion (RF-02)")
+            out("  El criterio no es el minimo de los aciertos: un umbral que no")
+            out("  descarta nada deja el requisito de abstencion sin efecto, y la")
+            out("  precision base publicada del modelo es de 63,5 %. Se elige el")
+            out("  valor que evita mas errores por cada acierto sacrificado.")
+            out()
+            out(f"  {'umbral':>7} {'aciertos':>9} {'errores':>8} {'abstiene':>9}  balance")
+            for u in (0.30, 0.40, 0.50, 0.60, 0.70):
+                ok = sum(1 for c, b in resultados if b and c >= u)
+                mal = sum(1 for c, b in resultados if not b and c >= u)
+                abst = sum(1 for c, _ in resultados if c < u)
+                perdidos = aciertos - ok
+                evitados = (n - aciertos) - mal
+                out(f"  {u:7.2f} {ok:9d} {mal:8d} {abst:9d}"
+                    f"  evita {evitados}, pierde {perdidos}")
 
     # --- validacion de la ley de latencia ---
     if tokens and n:
@@ -386,6 +421,41 @@ def main() -> int:
         desvio = 100 * abs(vel - VELOCIDAD_REFERENCIA) / VELOCIDAD_REFERENCIA
         out(f"  Desvio                       : {desvio:.1f} %")
         out(f"  Presupuesto para 15 s        : {15*vel:.0f} tokens")
+
+    # --- caso de iluminacion: accion mas zona ---
+    # Tres de las nueve operaciones necesitan saber sobre que zona actuar, y
+    # se resuelven con una segunda llamada. Las otras veintitres de cada
+    # veintisiete no la pagan. El diseno tiene por lo tanto dos tiempos y no
+    # un promedio, y conviene reportar ambos.
+    out()
+    out("CASO DE ILUMINACION — accion mas zona en dos llamadas")
+    out("-" * 72)
+    totales = []
+    for frase in ("encende la luz del frente",
+                  "apaga la iluminacion del fondo",
+                  "prende las luces por favor"):
+        try:
+            r1, t1 = decidir(frase)
+            accion, conf1 = elegida(r1, "accion")
+            r2, t2 = zona_de(frase)
+            zona, conf2 = elegida(r2, "zona")
+        except Exception as e:
+            out(f"  ERROR  «{frase}»: {e}")
+            continue
+        n1 = tokens_entrada(r1) or 0
+        n2 = tokens_entrada(r2) or 0
+        totales.append(t1 + t2)
+        c1 = f"{conf1:.2f}" if conf1 is not None else "  -  "
+        c2 = f"{conf2:.2f}" if conf2 is not None else "  -  "
+        out(f"  accion {t1:5.2f}s {n1:4d}tok conf {c1}  ->  {accion}")
+        out(f"  zona   {t2:5.2f}s {n2:4d}tok conf {c2}  ->  {zona}")
+        out(f"  total  {t1+t2:5.2f}s {n1+n2:4d}tok   «{frase}»")
+        out()
+    if totales:
+        out("-" * 72)
+        out(f"  Orden de iluminacion (p50)   : {pct(totales,50):.2f}s")
+        if tiempos:
+            out(f"  Orden sin zona (p50)         : {pct(tiempos,50):.2f}s")
 
     # --- carril generativo ---
     gen = []
