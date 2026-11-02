@@ -424,6 +424,99 @@ El doble de tokens produce exactamente el doble de tiempo. La velocidad de proce
 
 ---
 
+## Entrada 12 — 28 de octubre de 2026 (segunda sesión de laboratorio)
+
+Segunda sesión con hardware. Se cerraron las dos reglas de verificación de la plataforma y se identificó la causa real de la ausencia del subsistema de modulación, distinta de la supuesta en la sesión anterior.
+
+**Actividades realizadas**
+
+- **Verificación del artefacto contra el commit antes de escribir la tarjeta.** Antes de escribir la imagen se inspeccionó la unidad de servicio del servidor de inferencia dentro de la partición raíz. La variable de modelos simultáneos, incorporada a la receta en la entrada anterior, no figuraba en la unidad instalada. El contraste de marcas de tiempo mostró que la imagen se había construido hora y media antes del commit que incorporó el cambio, de modo que la receta era correcta y el artefacto no. Se reconstruyó antes de continuar. El procedimiento de verificar el artefacto contra el commit que lo origina se incorpora al documento de instalación: la sesión anterior se perdió por un desajuste equivalente que no se detectó a tiempo.
+- **Escritura por mapa de bloques.** Se empleó el script de escritura verificada con el mapa de bloques generado por la construcción, en lugar de la copia directa utilizada en la sesión anterior.
+- **Reverificación de la regla R1 con línea base propia.** Se estableció primero el ruido de fondo de lectura del medio de arranque con el sistema en reposo y ambos modelos ya residentes, durante un intervalo equivalente al de la corrida. Sin esa referencia, un conteo de lecturas no es interpretable: el medio de arranque también sirve lecturas ordinarias del sistema de archivos, de modo que «cero lecturas» no es un criterio alcanzable ni exigible.
+- **Verificación de la regla R2.** Se eliminó la ruta por defecto de la tabla de encaminamiento, dejando intacta la red de enlace local. El equipo quedó sin salida al exterior conservando la sesión de administración, lo que permitió ejecutar una consulta de clasificación y registrar el resultado en un solo bloque fechado. Un primer intento de cortar la conectividad desde el punto de acceso resultó inviable porque el equipo que lo provee apaga la emisión al desactivar el enlace externo, lo que derriba también la red local.
+- **Ejecución del banco con el catálogo de nueve operaciones.** Se corrieron las veintisiete frases del dominio académico incorporadas en la entrada anterior, obteniendo latencia, tasa de acierto, distribución de confianza, memoria, temperatura y contadores del medio de arranque.
+- **Caracterización de la composición del prompt.** Al constatar que la latencia medida duplicaba la predicha por el modelo paramétrico, se diseñaron y ejecutaron tres consultas controladas para aislar la causa. El resultado modifica el diseño del catálogo y se describe en los datos medidos.
+- **Corrección del despliegue de overlays del árbol de dispositivos.** Se identificó que los overlays declarados en la configuración de arranque no se compilaban ni se desplegaban, y se incorporó la variable del BSP que los incluye. Se detalla en la sección de problemas.
+- **Migración de la capa de abstracción de hardware al dominio del aula.** El contrato de iluminación conservaba la nomenclatura doméstica con que se concibió el proyecto: las zonas se llamaban como habitaciones de una vivienda y las cinco escenas predefinidas correspondían a situaciones domésticas. Se renombraron las zonas conforme a la semántica fijada en la propuesta —zona de proyección y zona de trabajo— y se sustituyeron las escenas por cinco del contexto de aula, cuyos nombres coinciden además con el vocabulario de las frases del banco. Las escenas se diseñaron en blanco con intensidad variable y no con color pleno a baja intensidad: solo la componente roja admite modulación continua, de modo que una escena con color atenuado degenera en rojo.
+- **Validación de la capa de abstracción sobre el intérprete de la imagen.** Se ejecutaron las verificaciones del modo simulado sobre la Raspberry Pi y no únicamente sobre el equipo de desarrollo, confirmando que los módulos se importan y operan sobre el intérprete de la imagen, con sus estructuras empaquetadas para la interfaz de caracteres del núcleo.
+
+**Productos obtenidos**
+
+- `docs/benchmark/borde-2026-10-28.txt` — reporte del banco con el catálogo de nueve operaciones.
+- `docs/benchmark/r2-2026-10-28.txt` — evidencia fechada de la verificación de R2.
+- `yocto/kas/jarvis.yml` con la variable que despliega los overlays del árbol de dispositivos.
+- Capa de abstracción de hardware migrada al dominio del aula.
+- Imagen reconstruida con los overlays efectivamente desplegados.
+- Tres commits publicados en la rama `Daniel`: `76ba371`, `6bb2631` y `123c550`.
+
+**Datos medidos**
+
+*Equipo: Raspberry Pi 4 Model B Rev 1.5, núcleo 6.18.33-v8, 7806 MiB de memoria.*
+
+**Regla R1 — cumple.** Línea base en reposo: cero lecturas del medio de arranque en sesenta segundos, con ambos modelos residentes. Durante la corrida completa del banco: 8 lecturas y 504 sectores, equivalentes a 0,25 MiB, frente a los 1254,52 MiB de la sesión anterior. La corrección aplicada a la receta resuelve el incumplimiento registrado en la entrada 10.
+
+**Regla R2 — cumple.** Sin ruta por defecto y con el destino externo inalcanzable, la consulta de clasificación devolvió la operación esperada en 14,997 s, valor indistinguible del obtenido con conectividad. La inferencia no depende de enlace externo.
+
+**Banco de veintisiete casos, catálogo de nueve operaciones en una etapa:**
+
+| Magnitud | Valor |
+|---|---|
+| Latencia (p50 / p95) | 22,49 s / 22,61 s |
+| Tokens por consulta (media) | 533 |
+| Acierto de acción | 21 de 27 (77,8 %) |
+| Confianza mínima / mediana | 0,32 / 0,71 |
+| Carril generativo (p50 / máximo) | 9,08 s / 13,73 s |
+
+El acierto mejora diecisiete puntos respecto del catálogo de cuarenta y dos operaciones con enrutamiento jerárquico, que obtuvo 60,7 %.
+
+**Composición del prompt — causa de la discrepancia.** El catálogo de nueve operaciones estaba correctamente dimensionado, pero cada consulta enviaba tres preguntas tipadas y no una: acción, zona y riesgo. El costo fijo de plantilla, del orden de ciento veinte tokens por pregunta, se pagaba tres veces en todas las órdenes, incluidas las veintitrés de cada veintisiete en que la zona y el riesgo no significan nada. Cuatro configuraciones medidas:
+
+| Configuración | Tokens | Tiempo |
+|---|---:|---:|
+| Tres preguntas (acción, zona, riesgo) | 533 | 22,5 s |
+| Acción sola, nueve criterios | 277 | 15,0 s |
+| Acción con zona plegada, trece criterios | 377 | 20,4 s |
+| Zona sola, tres criterios | 144 | 7,6 s |
+
+La segunda configuración coincide exactamente con el presupuesto de 277 tokens fijado en la propuesta, lo que confirma que el dimensionamiento del catálogo era correcto y que el exceso provenía de las preguntas accesorias.
+
+**Ley de latencia — confirmada en cinco mediciones independientes.** Las cuatro configuraciones anteriores y la consulta ejecutada sin conectividad arrojan 18,5 tokens por segundo, idéntico al valor de referencia del 27 de octubre. El desvío del 28 % que reportó el banco es un artefacto de calcular la velocidad sobre un prompt que incluye tres plantillas: la restricción medida de la propuesta no requiere revisión.
+
+**Escritura de la imagen:** 2,6 GiB de 9,7 GiB (27,4 % con datos) en 7 min 29 s a 6,0 MiB/s, frente a 22 minutos por copia directa. La reducción coincide con la estimación registrada en la entrada anterior.
+
+**Recursos:** memoria disponible de 4653 a 4631 MiB durante la corrida completa, es decir 22 MiB de variación, lo que confirma que ningún modelo se descarga ni se recarga. Memoria residente del servidor de inferencia con ambos modelos, medida con la función corregida: 2832 MiB sobre tres procesos. Temperatura del SoC de 42,4 °C en reposo a 73,5 °C tras la corrida.
+
+**Reconstrucciones:** imagen con los overlays, 6428 tareas con 45 reejecutadas; imagen final, 6447 tareas con 20 reejecutadas.
+
+**Problemas encontrados y solución**
+
+- **Los overlays se declaraban pero no se desplegaban.** El subsistema de modulación seguía ausente en el sistema arrancado pese a que la imagen escrita sí correspondía al BSP corregido, de modo que la causa supuesta en la entrada 10 —imagen anterior al cambio— no explicaba este caso. La inspección de la partición de arranque mostró setenta y siete archivos de overlay, entre los que no figuraban los dos requeridos, y una búsqueda en el árbol de construcción confirmó que no existían en ninguna parte: no es que no se copiaran, es que no se compilaban. La variable empleada hasta ahora escribe líneas en el archivo de configuración de arranque pero no interviene en la compilación ni en el despliegue de los archivos binarios correspondientes; el firmware solicitaba dos archivos inexistentes y continuaba el arranque sin señalar error. La lista de overlays desplegados la gobierna una variable distinta del BSP, declarada con asignación débil y con un valor por omisión que no los incluye. Se añadió por anexión para conservar la lista por defecto, y la reconstrucción produjo ambos archivos. **Declarar un overlay y desplegarlo son dos pasos independientes, y el único síntoma de que falta el segundo es un periférico ausente.**
+- **El reporte de velocidad del banco induce a error.** Calcula los tokens por segundo sobre el total del prompt enviado, que incluía tres plantillas, y reportó un desvío del 28 % respecto de la referencia. La velocidad real no cambió. El reporte debe distinguir el costo fijo de plantilla del costo de los criterios.
+- **El umbral sugerido por el banco sigue mal planteado.** Propone el valor por debajo de la confianza mínima entre los aciertos, criterio que maximiza la retención a costa de no descartar ninguna clasificación errónea, dejando sin efecto el requisito de abstención. Con los datos de esta corrida, un umbral de 0,50 descarta cuatro de las seis clasificaciones erróneas al costo de un acierto. El criterio correcto es la curva de intercambio entre aciertos perdidos y errores evitados.
+- **El corte de conectividad desde el punto de acceso derriba la red local.** El equipo que provee el enlace apaga la emisión inalámbrica al desactivar el acceso externo, lo que interrumpió la sesión de administración y dejó una medición a medias. La verificación se rehízo eliminando la ruta por defecto en el propio equipo, que suprime la salida al exterior conservando el enlace local.
+- **La imagen no puede descomprimirse en el directorio temporal.** Un intento de inspeccionar la partición de arranque descomprimiendo la imagen en el directorio temporal agotó el espacio: es un sistema de archivos en memoria de 3,6 GiB y la imagen descomprimida ocupa 9,7 GiB. El comportamiento es análogo al registrado en la entrada anterior y debe constar en el documento de instalación.
+- **El script de escritura informa un tamaño de imagen nulo.** La línea de diagnóstico consulta el tamaño del enlace simbólico y no el del archivo apuntado, por lo que el redondeo lo reduce a cero. No afecta la verificación de capacidad, que se calcula sobre el dispositivo de destino, pero conviene corregirlo.
+- **Las claves de servidor cambian con cada imagen.** La escritura de una imagen nueva genera claves de host nuevas, y el cliente de acceso remoto rechaza la conexión señalando un posible ataque. Es el comportamiento esperado y se resuelve retirando la entrada anterior del archivo de equipos conocidos; debe constar en el documento de instalación para que no se interprete como un fallo.
+
+**Pendientes derivados**
+
+- Reducir el catálogo a una sola pregunta de acción, consultando la zona únicamente en las operaciones de iluminación, conforme a las cuatro configuraciones medidas.
+- Corregir el cálculo de velocidad y el criterio de umbral del banco de medición.
+- Cablear el sensor ambiental y las dos zonas de iluminación, y ejecutar la prueba de la capa de abstracción sobre los periféricos reales. Es la verificación que continúa sin realizarse y el riesgo abierto de mayor peso.
+- Verificar sobre el sistema arrancado que los overlays desplegados exponen efectivamente el subsistema de modulación y el de instrumentación.
+- Corregir la línea de diagnóstico del script de escritura.
+
+**Referencias consultadas**
+
+- meta-raspberrypi — variables de despliegue del árbol de dispositivos y sus overlays: https://github.com/agherzan/meta-raspberrypi
+- Yocto Project Reference Manual — `KERNEL_DEVICETREE` y asignación por anexión: https://docs.yoctoproject.org/ref-manual/variables.html
+- Linux kernel — contadores de `/proc/diskstats`: https://docs.kernel.org/admin-guide/iostats.html
+
+---
+
+
+---
+
 ## Pendientes
 
 **Requieren hardware (sesión de laboratorio)**
