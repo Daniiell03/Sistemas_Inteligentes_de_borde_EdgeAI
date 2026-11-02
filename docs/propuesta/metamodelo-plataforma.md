@@ -263,6 +263,150 @@ classDiagram
 
 **R-E5 — El estado efímero no toca el almacenamiento.** Un `Estado` no persistente reside en memoria. La regla gobierna el registro del sistema, los directorios temporales y los datos de trabajo de los servicios, y es lo que hace verificable la afirmación de que el sistema no escribe en el medio de arranque durante la operación.
 
+
+La restricción que sigue no se deriva del modelo sino de la medición sobre el
+hardware objetivo, y ninguna de las cinco reglas anteriores puede relajarla.
+Gobierna el dimensionamiento del catálogo de intenciones y, por lo tanto, el
+alcance funcional del sistema: en inferencia de decisión sobre CPU restringida,
+el diseño del catálogo *es* el diseño de la latencia.
+
+### 4.1 Restricción paramétrica de la plataforma
+
+```mermaid
+graph LR
+    subgraph CB1["«constraint» LeyDeLatencia"]
+        E1["t = n / V"]
+    end
+
+    subgraph CB2["«constraint» ComposicionDelPrompt"]
+        E2["n = B + s + k·c"]
+    end
+
+    subgraph CB3["«constraint» PresupuestoDeCatalogo"]
+        E3["k ≤ (t_max·V − B − s) / c"]
+    end
+
+    V["V = 18,5 tok/s<br/>«medido»"]
+    B["B = 100 tok<br/>plantilla fija"]
+    S["s ≈ 10 tok<br/>orden del usuario"]
+    C["c = 16,9 tok<br/>por criterio"]
+    TMAX["t_max = 15 s<br/>«objetivo»"]
+
+    K["k ≤ 9<br/>operaciones"]
+    T["t = 14,2 s<br/>«predicho»"]
+    TM["t = 13,4 s<br/>«medido con k=8»"]
+
+    V --> E1
+    V --> E3
+    B --> E2
+    B --> E3
+    S --> E2
+    S --> E3
+    C --> E2
+    C --> E3
+    TMAX --> E3
+
+    E2 --> E1
+    E3 --> K
+    E1 --> T
+    T -.->|validación| TM
+
+    classDef cons fill:#92400e,stroke:#78350f,color:#fff
+    classDef par fill:#1d4ed8,stroke:#1e3a8a,color:#fff
+    classDef res fill:#065f46,stroke:#064e3b,color:#fff
+
+    class E1,E2,E3 cons
+    class V,B,S,C,TMAX par
+    class K,T,TM res
+```
+
+**Interpretación.** El tiempo de respuesta es el cociente entre el número de tokens del prompt y la velocidad de procesamiento de la plataforma. El prompt se compone de una plantilla fija, la orden del usuario y el producto del número de operaciones por el costo de cada criterio. Despejando el número de operaciones para un tiempo objetivo de quince segundos resulta un máximo de nueve, lo que predice un tiempo de 14,2 segundos. La predicción se validó contra una medición independiente con ocho operaciones, que arrojó 13,4 segundos.
+
+---
+
+
+La regla R-E1 establece que el hardware se opera por drivers del núcleo. La
+vista interna muestra cómo: qué puerto de la capa de abstracción se conecta a
+qué interfaz del núcleo, y con qué protocolo. Expone además una restricción
+que la vista de definición oculta —el reparto desigual de los canales de
+color— y que no proviene del modelo sino del número de canales de modulación
+que el SoC expone.
+
+### 4.2 Vista interna de los componentes
+
+```mermaid
+graph TB
+    subgraph EXT["Dispositivos de los actores"]
+        NAV["Navegador"]
+    end
+
+    subgraph RPI["Raspberry Pi 4 — 8 GB"]
+        direction TB
+
+        subgraph PRED["Subsistema de red"]
+            PAP["pAP<br/>IEEE 802.11<br/>192.168.4.1"]
+        end
+
+        subgraph PAPP["Aplicación"]
+            PHTTP["pHTTP :8000"]
+            AGENTE["Agente<br/>coordinador"]
+            PDEC["pDecision"]
+            PGEN["pGenera"]
+            PSQL["pDatos"]
+            PHAL["pActua / pSensa"]
+        end
+
+        subgraph PINF["Servidor de inferencia"]
+            POLL["pOllama :11434"]
+        end
+
+        subgraph PKER["Drivers del núcleo"]
+            PPWM["pPWM<br/>/sys/class/pwm"]
+            PGPIO["pGPIO<br/>/dev/gpiochip0"]
+            PIIO["pIIO<br/>/sys/bus/iio"]
+        end
+    end
+
+    subgraph PERIF["Periféricos"]
+        ZONA1["Zona frente<br/>LED RGB"]
+        ZONA2["Zona fondo<br/>LED RGB"]
+        SENS["DHT22"]
+    end
+
+    NAV ===|"WLAN"| PAP
+    PAP ---|"HTTP"| PHTTP
+    PHTTP --- AGENTE
+    AGENTE --- PDEC
+    AGENTE --- PGEN
+    AGENTE --- PSQL
+    AGENTE --- PHAL
+
+    PDEC ---|"POST /v1/systemone"| POLL
+    PGEN ---|"POST /api/chat"| POLL
+
+    PHAL ---|"escritura"| PPWM
+    PHAL ---|"ioctl"| PGPIO
+    PHAL ---|"lectura"| PIIO
+
+    PPWM ==>|"canal rojo<br/>intensidad"| ZONA1
+    PGPIO ==>|"verde / azul<br/>conmutado"| ZONA1
+    PPWM ==>|"canal rojo<br/>intensidad"| ZONA2
+    PGPIO ==>|"verde / azul<br/>conmutado"| ZONA2
+    PIIO ==>|"GPIO4"| SENS
+
+    classDef puerto fill:#5b21b6,stroke:#4c1d95,color:#fff
+    classDef bloque fill:#1d4ed8,stroke:#1e3a8a,color:#fff
+    classDef fisico fill:#065f46,stroke:#064e3b,color:#fff
+
+    class PAP,PHTTP,PDEC,PGEN,PSQL,PHAL,POLL,PPWM,PGPIO,PIIO puerto
+    class AGENTE,NAV bloque
+    class ZONA1,ZONA2,SENS fisico
+```
+
+El diagrama de bloques internos expone una restricción que el diagrama de definición oculta: **el canal rojo de cada zona se conecta al puerto de modulación por hardware, mientras que los canales verde y azul se conectan al puerto de entrada y salida conmutada**. La causa es RH-05: el SoC expone dos canales de modulación y dos zonas en color requieren seis. La consecuencia es que cada zona admite intensidad continua sobre el rojo y ocho combinaciones de color, en lugar de una paleta completa.
+
+Se evaluó generar los cuatro canales restantes por software y se descartó: la temporización en espacio de usuario depende del planificador del sistema operativo y produce parpadeo perceptible precisamente bajo la carga de CPU de una inferencia. Se prefirió una paleta reducida y estable a una completa e inestable. La vía de escalamiento identificada es un controlador externo de dieciséis canales sobre el bus serie de dos hilos, ya habilitado en la configuración del BSP.
+
 ---
 
 ## 5. Vista integrada
@@ -315,6 +459,8 @@ Las tres flechas gruesas son las uniones entre planos y resumen el modelo: una r
 ## 6. Trazabilidad entre planos
 
 Una propiedad del sistema solo es verificable si puede seguirse a través de los tres planos. El modelo lo permite:
+
+La trazabilidad en sentido inverso —de las necesidades de los actores a los requisitos, y de estos a las restricciones medidas y a los bloques que las satisfacen— se expresa en el diagrama de requisitos de la propuesta de diseño (sección 3.7), y no se reproduce aquí.
 
 | Propiedad afirmada | Construcción | Distribución | Ejecución |
 |---|---|---|---|
