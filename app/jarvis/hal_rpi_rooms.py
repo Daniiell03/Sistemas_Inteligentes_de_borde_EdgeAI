@@ -72,7 +72,7 @@ _LINE_VALUES_FMT = "<QQ"
 _GPIO_V2_GET_LINE_IOCTL = 0xC250B407        # _IOWR(0xB4, 0x07, line_request)
 _GPIO_V2_LINE_SET_VALUES_IOCTL = 0xC010B40F  # _IOWR(0xB4, 0x0F, line_values)
 
-_GPIO_V2_LINE_FLAG_OUTPUT = 1 << 1
+_GPIO_V2_LINE_FLAG_OUTPUT = 1 << 3
 
 
 class _GpioLines:
