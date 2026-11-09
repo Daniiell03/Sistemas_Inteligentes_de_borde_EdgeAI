@@ -19,6 +19,11 @@ ExecStart=/usr/bin/python3 -m jarvis
 Environment=JARVIS_HOST=0.0.0.0
 Environment=JARVIS_PORT=8000
 Environment=JARVIS_DB=/var/lib/jarvis/jarvis.db
+# ProtectSystem=strict deja /etc en solo lectura, y el portal escribe su
+# configuracion la primera vez (genera el secreto de sesion). Vive con el
+# resto del estado, que es lo unico escribible y ademas persiste.
+Environment=JARVIS_CONFIG=/var/lib/jarvis/portal_config.json
+Environment=JARVIS_DATA=/var/lib/jarvis
 
 # Estado persistente: systemd crea y da permisos a /var/lib/jarvis
 StateDirectory=jarvis

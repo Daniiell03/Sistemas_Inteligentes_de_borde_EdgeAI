@@ -24,7 +24,14 @@ S = "${UNPACKDIR}"
 # enumerar subpaquetes porque Yocto fragmenta la stdlib y una omision solo se
 # manifiesta en ejecucion. El costo es despreciable: los modelos de inferencia
 # son el 97 % del peso de la imagen.
-RDEPENDS:${PN} = "python3-core python3-modules ollama-bin ollama-model-tev1"
+# El portal corre sobre FastAPI. Las ocho recetas existen en meta-python;
+# pydantic-core compila su nucleo en Rust, de modo que la primera
+# construccion es larga y las siguientes salen de sstate.
+RDEPENDS:${PN} = "python3-core python3-modules ollama-bin ollama-model-tev1 \
+    python3-fastapi python3-uvicorn python3-starlette python3-pydantic \
+    python3-python-multipart python3-itsdangerous \
+    python3-anyio python3-sniffio \
+"
 
 # El carril generativo es opcional: su ausencia reduce el catalogo a las
 # operaciones de decision sin impedir la operacion del sistema.

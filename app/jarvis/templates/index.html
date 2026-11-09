@@ -1,98 +1,558 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jarvis Aula - EdgeAI</title>
-    <style>
-        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #1e3a8a; font-size: 1.5rem; text-align: center; }
-        .chat-box { height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; background: #fafafa; border-radius: 4px; }
-        .message { margin-bottom: 10px; padding: 8px; border-radius: 4px; }
-        .user-msg { background-color: #dbeafe; color: #1e3a8a; text-align: right; margin-left: 20%; }
-        .sys-msg { background-color: #e5e7eb; color: #374151; margin-right: 20%; }
-        .controls { display: flex; gap: 10px; margin-bottom: 15px; }
-        select, input, button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; }
-        input { flex: 1; }
-        button { background-color: #1d4ed8; color: white; border: none; cursor: pointer; font-weight: bold; }
-        button:disabled { background-color: #9ca3af; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Jarvis Aula</title>
+<style>
+:root{
+  --bg:#f3f5fa; --card:#ffffff; --ink:#1b2333; --muted:#667085; --line:#e3e7ee;
+  --brand:#1d4ed8; --brand-ink:#ffffff; --brand-soft:#e6edff;
+  --ok:#15803d; --ok-soft:#dcfce7; --warn:#b45309; --warn-soft:#fef3c7;
+  --bad:#b91c1c; --bad-soft:#fee2e2; --lamp-off:#d5dae3;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e1320; --card:#171d2c; --ink:#e7eaf3; --muted:#98a2b3; --line:#2a3246;
+    --brand:#6b95ff; --brand-ink:#0b1020; --brand-soft:#1f2b4d;
+    --ok:#4ade80; --ok-soft:#12301f; --warn:#fbbf24; --warn-soft:#3a2c0b;
+    --bad:#f87171; --bad-soft:#3b1717; --lamp-off:#2b3347;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+
+/* Encabezado */
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.bar{max-width:980px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:1.1rem;color:var(--brand);margin-right:auto}
+.brand small{display:block;font-weight:400;color:var(--muted);font-size:.75rem}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:.85rem;font-weight:600}
+.chip.prof{background:var(--warn-soft);color:var(--warn)}
+nav{max-width:980px;margin:0 auto;padding:0 16px;display:flex;gap:4px}
+nav button{background:none;border:none;border-bottom:3px solid transparent;padding:10px 14px;cursor:pointer;color:var(--muted);font-weight:600}
+nav button[aria-selected=true]{color:var(--brand);border-bottom-color:var(--brand)}
+main{max-width:980px;margin:0 auto;padding:16px}
+
+/* Componentes */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h2{margin:0 0 12px;font-size:1.05rem}
+.grid{display:grid;gap:16px;grid-template-columns:1fr 1fr}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.btn{background:var(--brand);color:var(--brand-ink);border:none;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.sec{background:var(--brand-soft);color:var(--brand)}
+.btn.bad{background:var(--bad-soft);color:var(--bad)}
+.btn.sm{padding:5px 10px;font-size:.85rem}
+input[type=text],input[type=password],input[type=datetime-local],textarea,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+textarea{resize:vertical;min-height:60px}
+label{display:block;font-size:.85rem;color:var(--muted);margin:10px 0 4px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted);font-size:.9rem}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:700}
+.badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.bad{background:var(--bad-soft);color:var(--bad)} .badge.gray{background:var(--line);color:var(--muted)}
+.msg-err{color:var(--bad);font-size:.9rem;margin-top:8px;min-height:1.2em}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:20;font-size:.9rem}
+
+/* Login */
+#login{max-width:400px;margin:8vh auto 0;padding:0 16px}
+#login .card{padding:24px}
+#login h1{margin:0;font-size:1.4rem;color:var(--brand);text-align:center}
+#login p.sub{text-align:center;margin:4px 0 18px;color:var(--muted);font-size:.9rem}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:6px}
+.seg button{border:none;background:none;padding:8px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* Ambiente */
+.temp-big{font-size:2.8rem;font-weight:700;line-height:1}
+.temp-big small{font-size:1.2rem;font-weight:500;color:var(--muted)}
+.metrics{display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+.spark{width:100%;height:70px;display:block}
+.spark-l{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted)}
+.sim{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px}
+input[type=range]{width:100%;accent-color:var(--brand)}
+
+/* Luces */
+.room{display:flex;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.room:first-of-type{border-top:none}
+.lamp{flex:none;width:56px;height:56px;border-radius:50%;background:var(--lamp-off);border:3px solid var(--line);transition:all .25s}
+.room-info{flex:1;min-width:0}
+.room-name{font-weight:700;text-transform:capitalize}
+.swatches{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.sw{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed=true]{outline:3px solid var(--brand);outline-offset:1px}
+.scenes{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+
+/* Entregas */
+.tarea-h{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.tarea-h h3{margin:0;font-size:1rem;flex:1;min-width:160px}
+table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:10px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.8rem}
+.tbl-wrap{overflow-x:auto}
+
+/* Chat */
+.chat{height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);margin-bottom:10px}
+.m{max-width:80%;padding:8px 12px;border-radius:12px;margin-bottom:8px;white-space:pre-wrap}
+.m.u{background:var(--brand);color:var(--brand-ink);margin-left:auto}
+.m.s{background:var(--card);border:1px solid var(--line)}
+.m.d{background:var(--bad-soft);color:var(--bad)}
+.sug{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>Portal Jarvis - Asistente de Aula</h1>
-        
-        <div class="controls">
-            <select id="userRole">
-                <option value="estudiante">Rol: Estudiante</option>
-                <option value="profesor">Rol: Profesor</option>
-            </select>
-        </div>
 
-        <div class="chat-box" id="chatBox">
-            <div class="message sys-msg">Sistema iniciado. 100% Offline. Escriba su orden.</div>
-        </div>
-
-        <div class="controls">
-            <input type="text" id="commandInput" placeholder="Ej. Registra mi entrega..." onkeypress="handleEnter(event)">
-            <button id="sendBtn" onclick="sendCommand()">Enviar</button>
-        </div>
+<!-- ============ LOGIN ============ -->
+<section id="login" class="hidden">
+  <div class="card">
+    <h1>Portal Jarvis</h1>
+    <p class="sub">Asistente de aula · 100 % local</p>
+    <div class="seg" role="group" aria-label="Rol">
+      <button id="segEst" aria-pressed="true" type="button">Estudiante</button>
+      <button id="segProf" aria-pressed="false" type="button">Profesor</button>
     </div>
+    <div id="fEst">
+      <label for="inNombre">Nombre</label>
+      <input id="inNombre" type="text" autocomplete="name" maxlength="60">
+      <label for="inCarnet">Carné</label>
+      <input id="inCarnet" type="text" maxlength="20" placeholder="Ej. 2022123456">
+    </div>
+    <div id="fProf" class="hidden">
+      <label for="inPin">PIN del profesor</label>
+      <input id="inPin" type="password" autocomplete="current-password">
+    </div>
+    <div class="msg-err" id="loginErr" role="alert"></div>
+    <button class="btn" id="btnLogin" style="width:100%;margin-top:6px">Entrar</button>
+  </div>
+</section>
 
-    <script>
-        const chatBox = document.getElementById('chatBox');
-        const inputField = document.getElementById('commandInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const roleSelect = document.getElementById('userRole');
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header>
+    <div class="bar">
+      <div class="brand">Portal Jarvis<small>Asistente de aula · sin internet</small></div>
+      <span class="chip" id="whoChip"></span>
+      <button class="btn sec sm" id="btnLogout">Salir</button>
+    </div>
+    <nav role="tablist">
+      <button role="tab" data-tab="aula" aria-selected="true">Aula</button>
+      <button role="tab" data-tab="entregas" aria-selected="false">Entregas</button>
+      <button role="tab" data-tab="agenda" aria-selected="false">Agenda</button>
+      <button role="tab" data-tab="asistente" aria-selected="false">Asistente</button>
+    </nav>
+  </header>
 
-        function appendMessage(text, isUser) {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${isUser ? 'user-msg' : 'sys-msg'}`;
-            msgDiv.innerText = text;
-            chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
+  <main>
+    <!-- AULA -->
+    <section id="tab-aula">
+      <div class="grid">
+        <div class="card">
+          <h2>Ambiente</h2>
+          <div class="metrics">
+            <div><div class="temp-big" id="tVal">--<small> °C</small></div><div class="muted">Temperatura</div></div>
+            <div><div class="temp-big" id="hVal" style="font-size:1.9rem">--<small> %</small></div><div class="muted">Humedad</div></div>
+            <span class="badge gray" id="tEstado">Sin datos</span>
+          </div>
+          <svg class="spark" id="spT" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Temperatura reciente"></svg>
+          <div class="spark-l"><span>Temperatura · últimas lecturas</span><span id="spTr"></span></div>
+          <svg class="spark" id="spH" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Humedad reciente" style="margin-top:10px"></svg>
+          <div class="spark-l"><span>Humedad · últimas lecturas</span><span id="spHr"></span></div>
+          <div class="sim hidden" id="simBox">
+            <div class="muted" style="margin-bottom:4px">Simulación (solo pruebas): fuerza lo que “mide” el sensor</div>
+            <div class="row"><span style="width:120px" class="muted" id="simTl">Temp 24 °C</span><input type="range" id="simT" min="15" max="40" step="0.5" value="24"></div>
+            <div class="row"><span style="width:120px" class="muted" id="simHl">Hum 65 %</span><input type="range" id="simH" min="20" max="95" step="1" value="65"></div>
+          </div>
+        </div>
 
-        async function sendCommand() {
-            const text = inputField.value.trim();
-            if (!text) return;
+        <div class="card">
+          <h2>Luces del aula</h2>
+          <div id="rooms"></div>
+          <div class="scenes hidden" id="scenes"></div>
+          <div class="muted hidden" id="soloVer" style="margin-top:10px">Solo el profesor puede cambiar las luces.</div>
+        </div>
+      </div>
+    </section>
 
-            const role = roleSelect.value;
-            appendMessage(text, true);
-            inputField.value = '';
-            
-            // UI Feedback: Latencia asíncrona
-            sendBtn.disabled = true;
-            appendMessage("Procesando intención en el borde...", false);
-            
-            try {
-                const response = await fetch('/api/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ role: role, command: text })
-                });
-                
-                const data = await response.json();
-                
-                // Eliminamos el mensaje de "procesando" (último sys-msg)
-                chatBox.removeChild(chatBox.lastChild);
-                
-                if (response.ok) {
-                    appendMessage(data.message || JSON.stringify(data), false);
-                } else {
-                    appendMessage(`Error: ${data.detail}`, false);
-                }
-            } catch (error) {
-                chatBox.removeChild(chatBox.lastChild);
-                appendMessage("Error de conexión con el nodo Edge.", false);
-            }
-            sendBtn.disabled = false;
-        }
+    <!-- ENTREGAS -->
+    <section id="tab-entregas" class="hidden">
+      <div class="card hidden" id="nuevaTarea">
+        <h2>Nueva tarea</h2>
+        <label for="ntTitulo">Título</label>
+        <input id="ntTitulo" type="text" maxlength="120">
+        <label for="ntDesc">Descripción (opcional)</label>
+        <textarea id="ntDesc" maxlength="1000"></textarea>
+        <label for="ntFecha">Fecha límite (opcional)</label>
+        <input id="ntFecha" type="datetime-local">
+        <div class="row" style="margin-top:12px"><button class="btn" id="btnCrearTarea">Publicar tarea</button></div>
+        <div class="msg-err" id="ntErr"></div>
+      </div>
+      <div id="listaTareas"></div>
+    </section>
 
-        function handleEnter(e) {
-            if (e.key === 'Enter') sendCommand();
-        }
-    </script>
+    <!-- AGENDA -->
+    <section id="tab-agenda" class="hidden">
+      <div class="card hidden" id="nuevoEvento">
+        <h2>Agregar al plan de la sesión</h2>
+        <label for="agDesc">Actividad</label>
+        <input id="agDesc" type="text" maxlength="200" placeholder="Ej. Repaso de Yocto">
+        <label for="agFecha">Hora (opcional)</label>
+        <input id="agFecha" type="datetime-local">
+        <div class="row" style="margin-top:12px"><button class="btn" id="btnCrearEvento">Agregar</button></div>
+        <div class="msg-err" id="agErr"></div>
+      </div>
+      <div class="card">
+        <h2>Plan de la sesión</h2>
+        <div id="listaAgenda"></div>
+      </div>
+    </section>
+
+    <!-- ASISTENTE -->
+    <section id="tab-asistente" class="hidden">
+      <div class="card">
+        <h2>Asistente</h2>
+        <div class="sug" id="sug"></div>
+        <div class="chat" id="chat" aria-live="polite"></div>
+        <div class="row">
+          <input type="text" id="cmd" placeholder="Escriba su orden…" maxlength="300" style="flex:1">
+          <button class="btn" id="btnSend">Enviar</button>
+        </div>
+        <p class="muted" style="margin-bottom:0">El agente clasifica la orden con <code>tev1:0.8b</code> y redacta con <code>llama3.2:1b</code>, ambos locales. Cada orden tarda unos 15 segundos: es el costo de procesar el prompt a 18,5 tokens por segundo, no una demora de red. Si no reconoce la orden con suficiente confianza, se abstiene en lugar de adivinar.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+let ME = null, timer = null, tabActual = "aula";
+
+/* ---------- utilidades ---------- */
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "style") e.style.cssText = v;
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
+  return e;
+}
+async function api(path, opts = {}) {
+  const headers = { ...(opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {}) };
+  let r;
+  try { r = await fetch(path, { credentials: "same-origin", ...opts, headers }); }
+  catch { throw new Error("Sin conexión con el nodo Edge."); }
+  let data = null; try { data = await r.json(); } catch {}
+  if (r.status === 401 && path !== "/api/login") { mostrarLogin(); throw new Error("Sesión vencida."); }
+  if (!r.ok) {
+    let d = data && data.detail;
+    if (Array.isArray(d)) d = d.map(x => x.msg).join("; ");
+    throw new Error(d || "Error " + r.status);
+  }
+  return data;
+}
+const post = (p, body) => api(p, { method: "POST", body: JSON.stringify(body ?? {}) });
+function toast(t) { const e = h("div", { class: "toast" }, t); document.body.append(e); setTimeout(() => e.remove(), 2600); }
+const fecha = ts => new Date(ts * 1000).toLocaleString("es-CR", { dateStyle: "short", timeStyle: "short" });
+const fechaIso = s => s ? new Date(s).toLocaleString("es-CR", { dateStyle: "medium", timeStyle: "short" }) : "";
+const esProf = () => ME && ME.role === "profesor";
+
+/* ---------- login ---------- */
+let rolLogin = "estudiante";
+function setRol(r) {
+  rolLogin = r;
+  $("#segEst").setAttribute("aria-pressed", r === "estudiante");
+  $("#segProf").setAttribute("aria-pressed", r === "profesor");
+  $("#fEst").classList.toggle("hidden", r !== "estudiante");
+  $("#fProf").classList.toggle("hidden", r !== "profesor");
+  $("#loginErr").textContent = "";
+}
+$("#segEst").onclick = () => setRol("estudiante");
+$("#segProf").onclick = () => setRol("profesor");
+async function hacerLogin() {
+  $("#btnLogin").disabled = true; $("#loginErr").textContent = "";
+  try {
+    ME = await post("/api/login", { role: rolLogin, nombre: $("#inNombre").value, carnet: $("#inCarnet").value, pin: $("#inPin").value });
+    $("#inPin").value = "";
+    iniciarApp();
+  } catch (e) { $("#loginErr").textContent = e.message; }
+  $("#btnLogin").disabled = false;
+}
+$("#btnLogin").onclick = hacerLogin;
+["#inNombre", "#inCarnet", "#inPin"].forEach(s => $(s).addEventListener("keydown", e => { if (e.key === "Enter") hacerLogin(); }));
+$("#btnLogout").onclick = async () => { try { await post("/api/logout"); } catch {} mostrarLogin(); };
+
+function mostrarLogin() {
+  clearInterval(timer); ME = null;
+  $("#app").classList.add("hidden"); $("#login").classList.remove("hidden");
+}
+
+/* ---------- navegación ---------- */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => irTab(b.dataset.tab));
+function irTab(t) {
+  tabActual = t;
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["aula", "entregas", "agenda", "asistente"].forEach(x => $("#tab-" + x).classList.toggle("hidden", x !== t));
+  if (t === "entregas") cargarTareas();
+  if (t === "agenda") cargarAgenda();
+  if (t === "aula") refrescarAula();
+}
+
+function iniciarApp() {
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  const chip = $("#whoChip");
+  chip.className = "chip" + (esProf() ? " prof" : "");
+  chip.textContent = esProf() ? "Profesor" : `${ME.nombre} · ${ME.carnet}`;
+  $("#nuevaTarea").classList.toggle("hidden", !esProf());
+  $("#nuevoEvento").classList.toggle("hidden", !esProf());
+  $("#simBox").classList.toggle("hidden", !(esProf() && ME.simulado));
+  $("#scenes").classList.toggle("hidden", !esProf());
+  $("#soloVer").classList.toggle("hidden", esProf());
+  $("#chat").replaceChildren(h("div", { class: "m s" }, `Hola ${esProf() ? "profesor" : ME.nombre.split(" ")[0]}. Escriba su orden.`));
+  const ej = esProf() ? ["¿Qué temperatura hay en el aula?", "Encendé la luz del frente", "Poné el aula en modo proyección", "Apagá todas las luces", "¿Quién ya entregó?", "Resumime la sesión"]
+                      : ["¿Qué temperatura hay en el aula?", "¿Qué tengo pendiente?", "¿Qué hay programado hoy?"];
+  $("#sug").replaceChildren(...ej.map(t => h("button", { class: "btn sec sm", onclick: () => { $("#cmd").value = t; enviar(); } }, t)));
+  roomsDom = {}; $("#rooms").replaceChildren();
+  irTab("aula");
+  clearInterval(timer); timer = setInterval(() => { if (tabActual === "aula" && !document.hidden) refrescarAula(); }, 3000);
+}
+
+/* ---------- AULA: ambiente ---------- */
+function spark(svg, datos, color, umbral) {
+  svg.replaceChildren();
+  if (datos.length < 2) return;
+  let min = Math.min(...datos), max = Math.max(...datos);
+  if (umbral != null) max = Math.max(max, umbral);
+  if (max - min < 1) { max += .5; min -= .5; }
+  const x = i => (i / (datos.length - 1)) * 300, y = v => 66 - ((v - min) / (max - min)) * 60;
+  const ns = "http://www.w3.org/2000/svg";
+  if (umbral != null) {
+    const l = document.createElementNS(ns, "line");
+    l.setAttribute("x1", 0); l.setAttribute("x2", 300); l.setAttribute("y1", y(umbral)); l.setAttribute("y2", y(umbral));
+    l.setAttribute("stroke", "currentColor"); l.setAttribute("stroke-dasharray", "4 4"); l.setAttribute("opacity", ".35"); l.setAttribute("vector-effect", "non-scaling-stroke");
+    svg.append(l);
+  }
+  const p = document.createElementNS(ns, "polyline");
+  p.setAttribute("points", datos.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" "));
+  p.setAttribute("fill", "none"); p.setAttribute("stroke", color); p.setAttribute("stroke-width", "2.5");
+  p.setAttribute("stroke-linejoin", "round"); p.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(p);
+  svg.style.color = "var(--muted)";
+}
+function pintarAmbiente(a) {
+  const t = a.actual;
+  $("#tVal").firstChild.nodeValue = t ? t.temp.toFixed(1) : "--";
+  $("#hVal").firstChild.nodeValue = t ? t.hum.toFixed(0) : "--";
+  const b = $("#tEstado");
+  if (!t) { b.className = "badge gray"; b.textContent = "Sin datos"; }
+  else if (t.temp >= a.umbral) { b.className = "badge bad"; b.textContent = `Alta (≥ ${a.umbral} °C)`; }
+  else if (t.temp >= a.umbral - 2) { b.className = "badge warn"; b.textContent = "Cerca del límite"; }
+  else { b.className = "badge ok"; b.textContent = "Normal"; }
+  const T = a.historial.map(x => x.temp), H = a.historial.map(x => x.hum);
+  spark($("#spT"), T, "var(--brand)", a.umbral); spark($("#spH"), H, "var(--ok)");
+  if (T.length) { $("#spTr").textContent = `${Math.min(...T).toFixed(1)}–${Math.max(...T).toFixed(1)} °C`; $("#spHr").textContent = `${Math.min(...H).toFixed(0)}–${Math.max(...H).toFixed(0)} %`; }
+}
+let simTimer;
+function simEnviar() {
+  clearTimeout(simTimer);
+  simTimer = setTimeout(() => post("/api/ambiente/simular", { temp: +$("#simT").value, hum: +$("#simH").value }).then(refrescarAula).catch(e => toast(e.message)), 250);
+}
+$("#simT").oninput = () => { $("#simTl").textContent = `Temp ${$("#simT").value} °C`; simEnviar(); };
+$("#simH").oninput = () => { $("#simHl").textContent = `Hum ${$("#simH").value} %`; simEnviar(); };
+
+/* ---------- AULA: luces ---------- */
+let roomsDom = {};
+function pintarLampara(el, r) {
+  if (!r.encendida) { el.style.background = ""; el.style.boxShadow = "none"; el.style.borderColor = ""; return; }
+  const op = 0.25 + 0.75 * r.brillo;
+  el.style.background = `color-mix(in srgb, ${r.hex} ${Math.round(op * 100)}%, #1a1f2b)`;
+  el.style.borderColor = r.hex;
+  el.style.boxShadow = `0 0 ${Math.round(8 + 26 * r.brillo)}px ${Math.round(2 + 6 * r.brillo)}px color-mix(in srgb, ${r.hex} ${Math.round(op * 70)}%, transparent)`;
+}
+function construirHab(r, paleta) {
+  const lamp = h("div", { class: "lamp" }), estado = h("div", { class: "muted" });
+  const info = h("div", { class: "room-info" }, h("div", { class: "room-name" }, r.room), estado);
+  const d = { lamp, estado, sw: {}, slider: null, toggle: null, color: r.color === "apagado" ? "calido" : r.color };
+  if (esProf()) {
+    const sws = h("div", { class: "swatches" }, ...paleta.map(c => {
+      const b = h("button", { class: "sw", type: "button", title: c.nombre, "aria-label": c.nombre, style: `background:${c.hex}`,
+        onclick: () => { d.color = c.nombre; enviarLuz(r.room, d, true); } });
+      d.sw[c.nombre] = b; return b;
+    }));
+    d.slider = h("input", { type: "range", min: 0, max: 100, step: 5, "aria-label": "Intensidad " + r.room });
+    d.slider.addEventListener("change", () => enviarLuz(r.room, d, false));
+    d.toggle = h("button", { class: "btn sm", type: "button" });
+    d.toggle.onclick = () => { d.slider.value = d.encendida ? 0 : 100; enviarLuz(r.room, d, false); };
+    info.append(sws, h("div", { class: "row" }, h("span", { class: "muted" }, "Intensidad"), d.slider), h("div", { style: "margin-top:8px" }, d.toggle));
+  }
+  roomsDom[r.room] = d;
+  return h("div", { class: "room" }, lamp, info);
+}
+async function enviarLuz(room, d, soloColor) {
+  let b = (+d.slider.value) / 100;
+  if (soloColor && b === 0) { b = 1; d.slider.value = 100; }
+  try { await post("/api/luces", { room, color: d.color, brillo: b }); refrescarLuces(); } catch (e) { toast(e.message); }
+}
+function pintarLuces(L) {
+  const cont = $("#rooms");
+  if (!Object.keys(roomsDom).length) {
+    cont.replaceChildren(...L.habitaciones.map(r => construirHab(r, L.paleta)));
+    if (esProf()) $("#scenes").replaceChildren(
+      ...L.escenas.map(e => h("button", { class: "btn sec sm", onclick: () => post("/api/luces/escena", { escena: e }).then(refrescarLuces).catch(x => toast(x.message)) }, "Escena " + e)),
+      h("button", { class: "btn bad sm", onclick: () => post("/api/luces/apagar").then(refrescarLuces).catch(x => toast(x.message)) }, "Apagar todo"));
+  }
+  for (const r of L.habitaciones) {
+    const d = roomsDom[r.room]; if (!d) continue;
+    d.encendida = r.encendida; if (r.encendida) d.color = r.color;
+    pintarLampara(d.lamp, r);
+    d.estado.textContent = r.encendida ? `Encendida · ${r.color} · ${Math.round(r.brillo * 100)} %` : "Apagada";
+    if (d.slider && document.activeElement !== d.slider) d.slider.value = Math.round(r.brillo * 100);
+    if (d.toggle) d.toggle.textContent = r.encendida ? "Apagar" : "Encender";
+    for (const [n, b] of Object.entries(d.sw)) b.setAttribute("aria-pressed", r.encendida && n === r.color);
+  }
+}
+async function refrescarLuces() { try { pintarLuces(await api("/api/luces")); } catch {} }
+async function refrescarAula() {
+  try { const [a, l] = await Promise.all([api("/api/ambiente"), api("/api/luces")]); pintarAmbiente(a); pintarLuces(l); } catch {}
+}
+
+/* ---------- ENTREGAS ---------- */
+$("#btnCrearTarea").onclick = async () => {
+  $("#ntErr").textContent = "";
+  try {
+    await post("/api/tareas", { titulo: $("#ntTitulo").value, descripcion: $("#ntDesc").value, fecha_limite: $("#ntFecha").value });
+    $("#ntTitulo").value = ""; $("#ntDesc").value = ""; $("#ntFecha").value = "";
+    toast("Tarea publicada"); cargarTareas();
+  } catch (e) { $("#ntErr").textContent = e.message; }
+};
+async function cargarTareas() {
+  let ts; try { ts = await api("/api/tareas"); } catch { return; }
+  const cont = $("#listaTareas");
+  if (!ts.length) { cont.replaceChildren(h("div", { class: "card muted" }, esProf() ? "Aún no hay tareas. Publique la primera arriba." : "No hay tareas publicadas todavía.")); return; }
+  cont.replaceChildren(...ts.map(esProf() ? tareaProf : tareaEst));
+}
+function limiteTxt(t) { return t.fecha_limite ? h("span", { class: "badge " + (t.vencida ? "bad" : "gray") }, (t.vencida ? "Venció " : "Límite ") + fechaIso(t.fecha_limite)) : null; }
+
+function tareaProf(t) {
+  const detalle = h("div", { class: "hidden" });
+  const verBtn = h("button", { class: "btn sec sm" }, `Ver entregas (${t.entregas})`);
+  verBtn.onclick = async () => {
+    if (!detalle.classList.toggle("hidden")) await pintarEntregas(t, detalle);
+  };
+  const del = h("button", { class: "btn bad sm", onclick: async () => {
+    if (!confirm(`¿Eliminar la tarea «${t.titulo}» y sus ${t.entregas} entregas? No se puede deshacer.`)) return;
+    try { await api("/api/tareas/" + t.id, { method: "DELETE" }); cargarTareas(); } catch (e) { toast(e.message); }
+  } }, "Eliminar");
+  return h("div", { class: "card" },
+    h("div", { class: "tarea-h" }, h("h3", {}, t.titulo), limiteTxt(t), verBtn, del),
+    t.descripcion && h("p", { class: "muted", style: "margin:8px 0 0;white-space:pre-wrap" }, t.descripcion),
+    detalle);
+}
+async function pintarEntregas(t, cont) {
+  let es; try { es = await api(`/api/tareas/${t.id}/entregas`); } catch (e) { toast(e.message); return; }
+  if (!es.length) { cont.replaceChildren(h("p", { class: "muted" }, "Nadie ha entregado todavía.")); return; }
+  cont.replaceChildren(h("div", { class: "tbl-wrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, ...["Estudiante", "Carné", "Enviada", "Archivo", "Comentario", ""].map(x => h("th", {}, x)))),
+    h("tbody", {}, es.map(e => h("tr", {},
+      h("td", {}, e.nombre), h("td", {}, e.carnet),
+      h("td", {}, fecha(e.enviada), " ", e.tarde && h("span", { class: "badge bad" }, "Tarde")),
+      h("td", {}, e.archivo ? h("a", { href: `/api/entregas/${e.id}/archivo`, download: "" }, e.archivo) : "—"),
+      h("td", {}, e.comentario || "—"),
+      h("td", {}, h("button", { class: "btn bad sm", onclick: async () => {
+        if (!confirm(`¿Eliminar la entrega de ${e.nombre}?`)) return;
+        try { await api("/api/entregas/" + e.id, { method: "DELETE" }); cargarTareas(); } catch (x) { toast(x.message); }
+      } }, "Quitar")))))
+  )));
+}
+
+function tareaEst(t) {
+  const m = t.mi_entrega;
+  const estado = m ? h("span", { class: "badge " + (m.tarde ? "warn" : "ok") }, m.tarde ? "Entregada tarde" : "Entregada")
+                   : h("span", { class: "badge " + (t.vencida ? "bad" : "warn") }, t.vencida ? "Vencida sin entrega" : "Pendiente");
+  const file = h("input", { type: "file" }), com = h("textarea", { maxlength: 500, placeholder: "Comentario (opcional)" });
+  com.value = m ? m.comentario : "";
+  const err = h("div", { class: "msg-err" });
+  const btn = h("button", { class: "btn" }, m ? "Reemplazar entrega" : "Enviar entrega");
+  btn.onclick = async () => {
+    err.textContent = ""; btn.disabled = true;
+    const fd = new FormData(); fd.append("comentario", com.value);
+    if (file.files[0]) fd.append("archivo", file.files[0]);
+    try { await api(`/api/tareas/${t.id}/entrega`, { method: "PUT", body: fd }); toast("Entrega guardada"); cargarTareas(); }
+    catch (e) { err.textContent = e.message; btn.disabled = false; }
+  };
+  return h("div", { class: "card" },
+    h("div", { class: "tarea-h" }, h("h3", {}, t.titulo), limiteTxt(t), estado),
+    t.descripcion && h("p", { class: "muted", style: "margin:8px 0 0;white-space:pre-wrap" }, t.descripcion),
+    m && h("p", { style: "margin:10px 0 0" }, "Su entrega: ",
+      m.archivo ? h("a", { href: `/api/entregas/${m.id}/archivo`, download: "" }, m.archivo) : "(solo comentario)", " · ", fecha(m.enviada)),
+    h("label", {}, m ? "Subir otro archivo (reemplaza el anterior)" : "Archivo"), file,
+    h("label", {}, "Comentario"), com,
+    h("div", { class: "row", style: "margin-top:10px" }, btn), err);
+}
+
+/* ---------- ASISTENTE ---------- */
+function msg(t, cls) { const c = $("#chat"); c.append(h("div", { class: "m " + cls }, t)); c.scrollTop = c.scrollHeight; }
+async function enviar() {
+  const t = $("#cmd").value.trim(); if (!t) return;
+  $("#cmd").value = ""; msg(t, "u"); $("#btnSend").disabled = true;
+  const esp = h("div", { class: "m s muted" }, "Procesando en el borde…"); $("#chat").append(esp);
+  try {
+    const r = await post("/api/command", { command: t });
+    esp.remove(); msg(r.message || JSON.stringify(r), r.status === "denied" ? "d" : "s");
+    if (r.intent === "LUCES" || r.intent === "AMBIENTE") refrescarAula();
+  } catch (e) { esp.remove(); msg(e.message, "d"); }
+  $("#btnSend").disabled = false; $("#cmd").focus();
+}
+$("#btnSend").onclick = enviar;
+$("#cmd").addEventListener("keydown", e => { if (e.key === "Enter") enviar(); });
+
+/* ---------- arranque ---------- */
+(async () => {
+  try { const r = await fetch("/api/me", { credentials: "same-origin" }).then(x => x.json()); if (r.auth) { ME = r; iniciarApp(); return; } } catch {}
+  mostrarLogin();
+})();
+
+// --- Agenda ------------------------------------------------------------
+async function cargarAgenda() {
+  let items;
+  try { items = await api("/api/agenda"); } catch (e) { toast(e.message); return; }
+  const cont = $("#listaAgenda");
+  if (!items.length) {
+    cont.replaceChildren(h("p", { class: "muted" }, "No hay actividades registradas."));
+    return;
+  }
+  cont.replaceChildren(...items.map(ev => h("div",
+    { class: "row", style: "justify-content:space-between;align-items:center;gap:12px;padding:8px 0" },
+    h("div", {},
+      h("strong", {}, ev.descripcion),
+      h("div", { class: "muted" }, fechaIso(ev.momento))),
+    esProf()
+      ? h("button", {
+          class: "btn bad sm",
+          onclick: async () => {
+            try { await api("/api/agenda/" + ev.id, { method: "DELETE" }); cargarAgenda(); }
+            catch (e) { toast(e.message); }
+          }
+        }, "Borrar")
+      : null)));
+}
+
+$("#btnCrearEvento").onclick = async () => {
+  const desc = $("#agDesc").value.trim();
+  const err = $("#agErr");
+  err.textContent = "";
+  if (desc.length < 2) { err.textContent = "Escriba la actividad."; return; }
+  try {
+    await post("/api/agenda", { descripcion: desc, momento: $("#agFecha").value || "" });
+    $("#agDesc").value = ""; $("#agFecha").value = "";
+    cargarAgenda();
+  } catch (e) { err.textContent = e.message; }
+};
+</script>
 </body>
 </html>
