@@ -49,6 +49,10 @@ local_conf_header:
     ENABLE_UART = "1"
     IMAGE_FSTYPES = "wic.bz2 wic.bmap"
     INHERIT += "rm_work"
+    # pydantic-core compila en Rust y agota la memoria del host con el
+    # paralelismo por defecto. Mas lento, pero termina.
+    BB_NUMBER_THREADS = "2"
+    PARALLEL_MAKE = "-j 2"
     BB_HASHSERVE_DB_DIR = "${SSTATE_DIR}"
     hostname:pn-base-files = "jarvis"
     RPI_EXTRA_CONFIG = "dtoverlay=dht11,gpiopin=4\ndtparam=i2c_arm=on\ndtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4"
