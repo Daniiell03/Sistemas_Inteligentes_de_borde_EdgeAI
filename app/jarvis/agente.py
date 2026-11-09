@@ -137,6 +137,23 @@ class Agente:
         if resuelta is not None:
             return resuelta
 
+        # Ruta rapida: si la orden nombra una escena de forma inequivoca, se
+        # aplica sin consultar al modelo. Cero tokens y respuesta inmediata,
+        # frente a los quince segundos y la clasificacion poco fiable que
+        # midieron las campanas del 28/10, 6/11 y 9/11. El catalogo ya
+        # resolvia la escena por texto; lo que faltaba era hacerlo antes de
+        # clasificar y no despues.
+        escena = catalogo.escena_explicita(orden)
+        if escena is not None:
+            t0 = time.perf_counter()
+            respuesta = self._actuar(rol, orden, "LUZ_MODO", None)
+            respuesta.confianza = 1.0
+            respuesta.latencia = time.perf_counter() - t0
+            self.almacen.anotar_decision(
+                orden, "LUZ_MODO", 1.0, respuesta.ejecutada,
+                "resuelta por coincidencia de texto, sin consultar al modelo")
+            return respuesta
+
         t0 = time.perf_counter()
         try:
             decision = inferencia.clasificar(orden)

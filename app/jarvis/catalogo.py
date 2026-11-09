@@ -36,6 +36,7 @@ que dos llamadas cortas sean peores que una sola mas larga, y es la misma
 razon por la que se elimino el enrutamiento jerarquico de dos etapas.
 """
 
+import unicodedata
 from typing import Dict, Any
 
 from .hal_rooms import Room
@@ -160,26 +161,75 @@ def requiere_generacion(accion: str) -> bool:
     return accion in ACCIONES_GENERATIVAS
 
 
+# Sinonimos frecuentes observados en el banco de frases. Algunos son
+# ambiguos fuera de contexto —"prueba" aparece en "quien entrego la prueba",
+# "cerrar" en "cerra la sesion"— de modo que por si solos no bastan para
+# tomar la ruta rapida: ver escena_explicita().
+ALIAS_ESCENA = {
+    "proyeccion": ("proyectar", "pantalla", "presentacion", "cine"),
+    "lectura":    ("leer", "individual"),
+    "grupos":     ("grupo", "equipos", "subgrupos"),
+    "examen":     ("prueba", "quiz", "evaluacion"),
+    "salida":     ("salir", "terminamos", "cerrar"),
+}
+
+# Palabras que declaran la intencion de cambiar el ambiente del aula. Junto a
+# un sinonimo ambiguo lo vuelven inequivoco.
+PALABRAS_DE_ESCENA = ("escena", "modo", "ambiente")
+
+
+def normalizar(texto: str) -> str:
+    """Minusculas sin acentos.
+
+    El usuario escribe "proyeccion" o "proyección" indistintamente, y la
+    interfaz propone la forma acentuada. Comparar sin normalizar hace que la
+    sugerencia del propio portal no coincida con el catalogo.
+    """
+    return "".join(c for c in unicodedata.normalize("NFD", texto.lower())
+                   if unicodedata.category(c) != "Mn")
+
+
 def escena_en(texto: str) -> str | None:
-    """Busca una escena conocida mencionada en la orden.
+    """Busca una escena conocida mencionada en la orden, con sinonimos.
 
     Resuelto por coincidencia de texto y no por el modelo: una cuarta pregunta
     costaria unos 130 tokens y siete segundos para distinguir cinco opciones
     que el usuario nombra literalmente.
+
+    Es permisiva a proposito: se invoca cuando el modelo ya clasifico la
+    orden como cambio de escena, de modo que el contexto esta establecido y
+    lo unico que falta es cual.
     """
-    t = texto.lower()
+    t = normalizar(texto)
     for escena in ESCENAS_CONOCIDAS:
         if escena in t:
             return escena
-    # Sinonimos frecuentes observados en el banco de frases.
-    alias = {
-        "proyeccion": ("proyectar", "pantalla", "presentacion", "cine"),
-        "lectura":    ("leer", "individual"),
-        "grupos":     ("grupo", "equipos", "subgrupos"),
-        "examen":     ("prueba", "quiz", "evaluacion"),
-        "salida":     ("salir", "terminamos", "cerrar"),
-    }
-    for escena, palabras in alias.items():
+    for escena, palabras in ALIAS_ESCENA.items():
+        if any(p in t for p in palabras):
+            return escena
+    return None
+
+
+def escena_explicita(texto: str) -> str | None:
+    """Escena nombrada de forma inequivoca, para resolver sin el modelo.
+
+    Mas estricta que escena_en() porque decide sin que nadie haya
+    establecido el contexto: basta el nombre exacto de la escena, o un
+    sinonimo acompanado de una palabra que declare la intencion. Sin esa
+    exigencia, "quien entrego la prueba" aplicaria la escena de examen.
+
+    Medido el 9 de noviembre: las tres frases de escena del banco —"pone el
+    aula en modo proyeccion", "cambia a modo lectura", "activa la escena de
+    trabajo en grupo"— se resuelven por esta via, que el modelo clasificaba
+    mal en las tres mediciones anteriores.
+    """
+    t = normalizar(texto)
+    for escena in ESCENAS_CONOCIDAS:
+        if escena in t:
+            return escena
+    if not any(p in t for p in PALABRAS_DE_ESCENA):
+        return None
+    for escena, palabras in ALIAS_ESCENA.items():
         if any(p in t for p in palabras):
             return escena
     return None
