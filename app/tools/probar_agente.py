@@ -70,16 +70,22 @@ class _Falso:
                   zona: Optional[str] = None) -> None:
         self.guion.append((accion, confianza, zona))
 
-    def clasificar(self, orden: str) -> inferencia.Decision:
+    def clasificar(self, orden: str, zona_conocida=None) -> inferencia.Decision:
         self.consultas.append(orden)
         if not self.guion:
             raise AssertionError(f"clasificacion no programada para {orden!r}")
         accion, confianza, zona = self.guion.pop(0)
+        # El doble imita a la inferencia real: la zona resuelta por texto
+        # tiene precedencia sobre la del guion, igual que alli la tiene sobre
+        # la segunda llamada al modelo. Sin esto el banco probaria un
+        # comportamiento que la produccion no tiene.
+        if zona_conocida is not None:
+            zona = zona_conocida
         return inferencia.Decision(
             accion=accion,
             confianza=confianza,
             zona=zona,
-            riesgo=catalogo.requiere_confirmacion(accion),
+            riesgo=catalogo.requiere_confirmacion(accion, zona),
             latencia=0.0,
             tokens=277,
         )
@@ -159,11 +165,23 @@ def pruebas_simuladas(b: Banco, db: str) -> None:
                     r.motivo is Parada.CUMPLIDA and luces.get(Room.FRENTE).is_on,
                     f"motivo={r.motivo.value} mensaje={r.mensaje!r}")
 
+        # Apagar el aula completa se confirma por alcance (RF-09): la orden
+        # no nombra zona, de modo que afecta a todos los presentes a la vez.
+        # La zona se resuelve por texto, asi que solo hay una consulta al
+        # modelo —la de la accion— y ninguna por la zona.
         falso.programar("LUZ_OFF", 0.95, "AMBAS")
+        antes_todo = len(falso.consultas)
         r = agente.procesar("profesor", "apaga todas las luces")
+        b.verificar("apagar todo el aula pide confirmacion",
+                    r.motivo is Parada.CONFIRMACION,
+                    f"motivo={r.motivo.value} mensaje={r.mensaje!r}")
+        b.verificar("el apagado total no consulta al modelo por la zona",
+                    len(falso.consultas) == antes_todo + 1,
+                    f"consultas antes={antes_todo} despues={len(falso.consultas)}")
+        r = agente.procesar("profesor", "si")
         apagadas = all(not (luces.get(z) and luces.get(z).is_on)
                        for z in luces.available())
-        b.verificar("LUZ_OFF con zona AMBAS apaga todo",
+        b.verificar("confirmado, apaga todas las zonas",
                     r.motivo is Parada.CUMPLIDA and apagadas,
                     f"motivo={r.motivo.value}")
 
@@ -176,11 +194,19 @@ def pruebas_simuladas(b: Banco, db: str) -> None:
         # -- escenas -------------------------------------------------------
         b.seccion("Escenas")
 
-        falso.programar("LUZ_MODO", 0.88)
+        # Esta orden nombra la escena de forma inequivoca, de modo que se
+        # resuelve por coincidencia de texto y no llega al modelo: no se
+        # programa ninguna clasificacion. Programarla dejaba una entrada sin
+        # consumir en la cola del doble y corria todas las pruebas
+        # siguientes una posicion.
+        antes_escena = len(falso.consultas)
         r = agente.procesar("profesor", "pone el aula en modo proyeccion")
         b.verificar("LUZ_MODO resuelve la escena por texto",
                     r.motivo is Parada.CUMPLIDA and r.datos.get("escena") == "proyeccion",
                     f"datos={r.datos}")
+        b.verificar("la ruta rapida de escena no consulta al modelo",
+                    len(falso.consultas) == antes_escena,
+                    f"consultas antes={antes_escena} despues={len(falso.consultas)}")
 
         b.verificar("la escena proyeccion deja el frente apagado",
                     not luces.get(Room.FRENTE).is_on,
@@ -203,6 +229,21 @@ def pruebas_simuladas(b: Banco, db: str) -> None:
 
         # -- entregas ------------------------------------------------------
         b.seccion("Entregas y confirmacion")
+
+        # El esquema unificado exige que exista una tarea antes de registrar
+        # una entrega: 'entregas' referencia 'tareas' y lleva UNIQUE por
+        # (tarea_id, carnet). Las crea el portal desde su propia vista y
+        # persistencia.py no expone un metodo para ello, de modo que el banco
+        # la inserta igual que el portal. Sin esta tarea, registrar_entrega
+        # lanza SinTareas y las tres pruebas de entrega miden una
+        # precondicion ausente en lugar del comportamiento del agente.
+        import sqlite3 as _sq, time as _t
+        with _sq.connect(db) as _cx:
+            _cx.execute(
+                "INSERT INTO tareas(titulo,descripcion,fecha_limite,creada) "
+                "VALUES (?,?,?,?)",
+                ("Laboratorio 3", "Tarea creada por el banco", None, _t.time()))
+            _cx.commit()
 
         falso.programar("ENTREGA_REG", 0.97)
         r = agente.procesar("profesor", "registra la entrega de Maria del laboratorio 3")

@@ -45,7 +45,7 @@ from typing import Any, Dict, Optional
 from . import catalogo, inferencia
 from .hal import TempHumSensor
 from .hal_rooms import PALETTE, Room, RoomLight
-from .persistencia import Almacen
+from .persistencia import Almacen, SinTareas
 
 MAX_ITERACIONES = 2
 
@@ -90,7 +90,11 @@ class Respuesta:
 
 @dataclass
 class _Pendiente:
-    """Accion irreversible esperando confirmacion del usuario."""
+    """Accion esperando confirmacion del usuario.
+
+    Por irreversibilidad —registrar una entrega— o por alcance —apagar el
+    aula completa—. Ver catalogo.requiere_confirmacion().
+    """
 
     accion: str
     orden: str
@@ -104,6 +108,25 @@ class _Pendiente:
 AFIRMACIONES = ("si", "sí", "dale", "confirmo", "correcto", "adelante",
                 "hacelo", "hazlo", "ok", "de una", "afirmativo")
 NEGACIONES = ("no", "cancela", "cancelar", "olvidalo", "mejor no", "negativo")
+
+
+def _color_en(orden: str) -> Optional[str]:
+    """Color nombrado en la orden, resuelto contra la paleta de la HAL.
+
+    Se recorre PALETTE en lugar de mantener una lista de colores aqui: si se
+    agrega un color a la paleta, el agente lo reconoce sin tocar este
+    modulo. Los nombres mas largos se prueban primero para que "azul
+    profundo" no se resuelva como "azul".
+
+    Como las escenas y la zona, se resuelve por texto y no por el modelo: el
+    usuario nombra el color literalmente, y preguntarlo costaria una tercera
+    llamada de siete segundos para distinguir opciones que ya estan escritas.
+    """
+    t = catalogo.normalizar(orden)
+    for nombre in sorted(PALETTE, key=len, reverse=True):
+        if catalogo.normalizar(nombre) in t:
+            return nombre
+    return None
 
 
 class Agente:
@@ -154,9 +177,21 @@ class Agente:
                 "resuelta por coincidencia de texto, sin consultar al modelo")
             return respuesta
 
+        # La zona se resuelve por texto antes de clasificar y se entrega a la
+        # inferencia, que entonces omite su segunda llamada. Son 7,6 s menos
+        # en toda orden de iluminacion, y acierta donde el modelo fallaba.
+        zona_texto = catalogo.zona_explicita(orden)
+
+        # "apaga todas las luces" no nombra una zona: nombra el aula entera.
+        # Declararlo explicitamente evita la segunda llamada tambien en ese
+        # caso, y es lo que hace que la confirmacion por alcance se dispare
+        # sin haber consultado al modelo por la zona.
+        if zona_texto is None and catalogo.menciona_todo(orden):
+            zona_texto = "NINGUNA"
+
         t0 = time.perf_counter()
         try:
-            decision = inferencia.clasificar(orden)
+            decision = inferencia.clasificar(orden, zona_conocida=zona_texto)
         except inferencia.ErrorInferencia as e:
             return Respuesta(Parada.ERROR, str(e), latencia=time.perf_counter() - t0)
 
@@ -186,27 +221,37 @@ class Agente:
                 latencia=decision.latencia,
             )
 
-        # Accion irreversible: se anuncia y se espera confirmacion (RF-09).
-        if catalogo.requiere_confirmacion(decision.accion):
-            datos = self._extraer_entrega(orden)
-            if not datos:
-                self.almacen.anotar_decision(orden, decision.accion,
-                                             decision.confianza, False, "falta dato")
-                return Respuesta(
-                    Parada.FALTA_DATO,
-                    "¿De quién es la entrega y de qué trabajo?",
-                    accion=decision.accion,
-                    confianza=decision.confianza,
-                    latencia=decision.latencia,
-                )
+        # Se anuncia y se espera confirmacion (RF-09), por irreversibilidad o
+        # por alcance. Los dos casos necesitan mensajes distintos: anunciar
+        # "voy a hacerlo, confirma" sin decir que se va a hacer convierte la
+        # confirmacion en un tramite y deja de proteger de nada.
+        if catalogo.requiere_confirmacion(decision.accion, decision.zona):
+            datos = {}
+            if decision.accion == "ENTREGA_REG":
+                datos = self._extraer_entrega(orden)
+                if not datos:
+                    self.almacen.anotar_decision(orden, decision.accion,
+                                                 decision.confianza, False, "falta dato")
+                    return Respuesta(
+                        Parada.FALTA_DATO,
+                        "¿De quién es la entrega y de qué trabajo?",
+                        accion=decision.accion,
+                        confianza=decision.confianza,
+                        latencia=decision.latencia,
+                    )
+                aviso = (f"Voy a registrar la entrega de {datos['estudiante']} "
+                         f"({datos['trabajo']}). ¿Confirmás?")
+            else:
+                aviso = ("Eso apaga la iluminación de todo el aula. "
+                         "¿Confirmás?")
+
             self._pendiente[rol] = _Pendiente(decision.accion, orden,
                                               decision.zona, time.monotonic())
             self.almacen.anotar_decision(orden, decision.accion,
                                          decision.confianza, False, "espera confirmacion")
             return Respuesta(
                 Parada.CONFIRMACION,
-                f"Voy a registrar la entrega de {datos['estudiante']} "
-                f"({datos['trabajo']}). ¿Confirmás?",
+                aviso,
                 accion=decision.accion,
                 confianza=decision.confianza,
                 latencia=decision.latencia,
@@ -227,7 +272,7 @@ class Agente:
                 zona: Optional[str]) -> Respuesta:
         try:
             if accion == "LUZ_ON":
-                return self._luz(zona, encender=True)
+                return self._luz(zona, encender=True, color=_color_en(orden))
             if accion == "LUZ_OFF":
                 return self._luz(zona, encender=False)
             if accion == "LUZ_MODO":
@@ -255,14 +300,20 @@ class Agente:
             return disponibles
         return [objetivo] if objetivo in disponibles else []
 
-    def _luz(self, zona: Optional[str], encender: bool) -> Respuesta:
+    def _luz(self, zona: Optional[str], encender: bool,
+             color: Optional[str] = None) -> Respuesta:
         objetivo = self._zonas_objetivo(zona)
         if not objetivo:
             return Respuesta(Parada.FALTA_DATO,
-                             f"Esa zona no está disponible en esta instalación.",
+                             "Esa zona no está disponible en esta instalación.",
                              accion="LUZ_ON" if encender else "LUZ_OFF")
         for r in objetivo:
-            if encender:
+            if encender and color is not None:
+                # Encender con un color nombrado es una sola operacion, no
+                # encender y luego recolorear: dos llamadas producirian un
+                # destello del color anterior.
+                self.luces.set(r, PALETTE[color], 1.0)
+            elif encender:
                 self.luces.turn_on(r)
             else:
                 self.luces.turn_off(r)
@@ -272,9 +323,12 @@ class Agente:
                 self.almacen.guardar_zona(r.name, nombre, estado.brightness)
         nombres = ", ".join(r.value for r in objetivo)
         verbo = "Encendí" if encender else "Apagué"
-        return Respuesta(Parada.CUMPLIDA, f"{verbo} la iluminación de: {nombres}.",
+        detalle = f" en {color}" if (encender and color) else ""
+        return Respuesta(Parada.CUMPLIDA,
+                         f"{verbo} la iluminación de: {nombres}{detalle}.",
                          accion="LUZ_ON" if encender else "LUZ_OFF",
-                         datos={"zonas": [r.name for r in objetivo]})
+                         datos={"zonas": [r.name for r in objetivo],
+                                "color": color})
 
     def _escena(self, orden: str) -> Respuesta:
         escena = catalogo.escena_en(orden)
@@ -360,12 +414,36 @@ class Agente:
             return None  # no es respuesta a la confirmacion: se clasifica normal
 
         del self._pendiente[rol]
+
+        # Solo el registro de entregas necesita extraer datos de la orden
+        # original. El resto se ejecuta por la via normal: asumir que todo
+        # lo pendiente es una entrega fue correcto mientras ENTREGA_REG era
+        # la unica operacion que se confirmaba.
+        if pendiente.accion != "ENTREGA_REG":
+            respuesta = self._actuar(rol, pendiente.orden,
+                                     pendiente.accion, pendiente.zona)
+            respuesta.confianza = 1.0
+            self.almacen.anotar_decision(pendiente.orden, pendiente.accion,
+                                         1.0, respuesta.ejecutada, "confirmada")
+            return respuesta
+
         datos = self._extraer_entrega(pendiente.orden)
         if not datos:
             return Respuesta(Parada.FALTA_DATO,
                              "Perdí el detalle de la entrega. ¿Me la repetís?",
                              accion=pendiente.accion)
-        self.almacen.registrar_entrega(datos["estudiante"], datos["trabajo"], rol)
+        try:
+            self.almacen.registrar_entrega(datos["estudiante"], datos["trabajo"], rol)
+        except SinTareas as e:
+            # El profesor no ha creado ninguna tarea todavia. No es un fallo
+            # del agente ni del modelo: es una precondicion del dominio, y
+            # corresponde enunciarla. El portal ya lo capturaba en su
+            # subclase; hacerlo aqui evita que el agente base caiga cuando se
+            # usa sin el portal, que es como lo ejercita el banco.
+            self.almacen.anotar_decision(pendiente.orden, pendiente.accion,
+                                         1.0, False, "sin tareas creadas")
+            return Respuesta(Parada.FALTA_DATO, str(e),
+                             accion=pendiente.accion)
         self.almacen.anotar_decision(pendiente.orden, pendiente.accion, 1.0,
                                      True, "confirmada")
         return Respuesta(

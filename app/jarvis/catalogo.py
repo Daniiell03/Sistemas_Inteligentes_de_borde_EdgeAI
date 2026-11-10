@@ -71,6 +71,11 @@ ACCIONES_CON_ZONA = frozenset({"LUZ_ON", "LUZ_OFF", "LUZ_MODO"})
 # confirmacion explicita del usuario antes de ejecutarse (RF-09).
 ACCIONES_IRREVERSIBLES = frozenset({"ENTREGA_REG"})
 
+# Operaciones reversibles que, sin zona, afectan el aula entera y por lo
+# tanto se confirman por alcance y no por irreversibilidad. Encender no esta
+# aqui: encender de mas molesta mucho menos que apagar de mas.
+ACCIONES_DE_ALCANCE_TOTAL = frozenset({"LUZ_OFF"})
+
 # Operaciones que requieren redactar lenguaje natural y por lo tanto pasan
 # por el carril generativo (RF-07). El resto se resuelve con la decision y
 # una respuesta construida por la aplicacion.
@@ -153,8 +158,73 @@ def requiere_zona(accion: str) -> bool:
     return accion in ACCIONES_CON_ZONA
 
 
-def requiere_confirmacion(accion: str) -> bool:
-    return accion in ACCIONES_IRREVERSIBLES
+# Sinonimos de zona observados en el banco de frases. La zona esta escrita
+# en la orden casi siempre, de modo que resolverla por texto es mas fiable
+# que preguntarla: el banco del 10 de noviembre la clasifico mal en dos de
+# tres casos, con la palabra presente en la frase.
+ALIAS_ZONA = {
+    "FRENTE": ("frente", "adelante", "enfrente", "pizarra", "tablero",
+               "proyector", "primeras filas"),
+    "FONDO":  ("fondo", "atras", "detras", "al final", "ultimas filas"),
+}
+
+# Palabras que declaran explicitamente el aula completa. Se reconocen para
+# distinguir "apaga todas las luces" —que afecta todo y exige confirmacion—
+# de una orden que simplemente omitio la zona.
+PALABRAS_DE_TODO = ("todas", "todos", "todo el aula", "el aula completa",
+                    "completa", "general")
+
+
+def zona_explicita(texto: str) -> Optional[str]:
+    """Zona nombrada en la orden, o None si no nombra ninguna.
+
+    Devolver None significa "no lo dijo", que el agente interpreta como el
+    aula completa. Es deliberado que no haya un valor intermedio: una orden
+    sin zona y una orden que dice "todas" actuan igual, y la diferencia solo
+    importa para decidir si se pide confirmacion.
+    """
+    t = normalizar(texto)
+    for zona, palabras in ALIAS_ZONA.items():
+        if any(p in t for p in palabras):
+            return zona
+    return None
+
+
+def menciona_todo(texto: str) -> bool:
+    """Si la orden declara el aula completa de forma explicita."""
+    t = normalizar(texto)
+    return any(p in t for p in PALABRAS_DE_TODO)
+
+
+def zona_concreta(zona: Optional[str]) -> bool:
+    """Si la zona identifica una sola zona de la instalacion.
+
+    El modelo devuelve "NINGUNA" cuando no reconoce ninguna, y la ausencia
+    de zona se representa con None. Ambos significan el aula completa.
+    """
+    return bool(zona) and zona != "NINGUNA"
+
+
+def requiere_confirmacion(accion: str, zona: Optional[str] = None) -> bool:
+    """Si la operacion debe anunciarse y esperar confirmacion (RF-09).
+
+    Dos razones distintas, y conviene no confundirlas:
+
+      irreversibilidad   registrar una entrega modifica un registro que el
+                         usuario no puede deshacer desde la interfaz.
+      alcance            apagar el aula completa es reversible, pero afecta
+                         a todos los presentes a la vez. Apagar una sola
+                         zona no lo es, y pedir confirmacion ahi costaria
+                         quince segundos en la orden mas frecuente.
+
+    El parametro de zona es opcional porque inferencia.py construye la
+    decision antes de conocerla; alli se recalcula una vez resuelta.
+    """
+    if accion in ACCIONES_IRREVERSIBLES:
+        return True
+    if accion in ACCIONES_DE_ALCANCE_TOTAL and not zona_concreta(zona):
+        return True
+    return False
 
 
 def requiere_generacion(accion: str) -> bool:

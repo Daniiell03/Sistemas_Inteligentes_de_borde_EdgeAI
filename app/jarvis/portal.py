@@ -163,10 +163,26 @@ def db():
     return closing(con)
 
 
+# Marca de tiempo de la ultima lectura escrita en la tabla. El muestreador
+# corre cada cinco segundos y el sensor publica cada dos y medio, de modo que
+# sin esta comparacion una lectura que deja de refrescarse se escribe
+# indefinidamente: el 10 de noviembre la tabla acumulo 867 filas identicas de
+# un dato congelado. Se compara por marca de tiempo y no por valores, porque
+# dos lecturas iguales separadas en el tiempo si son informacion, mientras
+# que la misma lectura repetida no lo es.
+_ULTIMA_GUARDADA = None
+
+
 def guardar_muestra():
+    global _ULTIMA_GUARDADA
     r = SENSOR.last_reading()
     if r is None:
+        # Sensor sin datos o vencido. No se inventa una fila: el hueco en la
+        # serie es la representacion honesta de un sensor que no responde.
         return
+    if _ULTIMA_GUARDADA is not None and r.timestamp <= _ULTIMA_GUARDADA:
+        return
+    _ULTIMA_GUARDADA = r.timestamp
     with db() as con:
         con.execute("INSERT INTO ambiente (ts, temp, hum) VALUES (?,?,?)",
                     (time.time(), r.temperature_c, r.humidity_pct))
@@ -330,10 +346,15 @@ def ambiente(u: dict = Depends(usuario)):
         filas = con.execute(
             "SELECT ts, temp, hum FROM ambiente ORDER BY rowid DESC LIMIT 60"
         ).fetchall()
+    # El diagnostico se expone junto al valor para que un "actual": null no
+    # sea indistinguible de un sensor que no existe. La HAL falsa no lo
+    # implementa, de ahi el getattr.
+    diag = getattr(SENSOR, "diagnostico", None)
     return {
         "actual": None if r is None else {"temp": r.temperature_c, "hum": r.humidity_pct},
         "historial": [dict(f) for f in reversed(filas)],
         "umbral": CFG["umbral_temp_c"],
+        "sensor": diag() if callable(diag) else {"estado": "simulado"},
     }
 
 

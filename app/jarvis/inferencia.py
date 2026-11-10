@@ -150,12 +150,17 @@ def _tokens(respuesta: Dict[str, Any]) -> int:
     return int(uso.get("input_tokens") or uso.get("prompt_eval_count") or 0)
 
 
-def clasificar(orden: str) -> Decision:
+def clasificar(orden: str, zona_conocida=None) -> Decision:
     """Clasifica una orden en lenguaje natural contra el catalogo.
 
-    Hace una llamada de accion y, solo si la accion lo requiere, una segunda
-    de zona. Devuelve la decision aunque no supere el umbral: decidir si se
-    actua es responsabilidad del agente, no de este modulo.
+    Hace una llamada de accion y, solo si la accion lo requiere y la zona no
+    viene resuelta, una segunda de zona. Devuelve la decision aunque no
+    supere el umbral: decidir si se actua es responsabilidad del agente, no
+    de este modulo.
+
+    zona_conocida permite al agente entregar la zona ya resuelta por
+    coincidencia de texto. Cuando la entrega, la segunda llamada se omite:
+    son 7,6 s menos en la orden mas frecuente del sistema.
     """
     respuesta, t1 = _post(
         "/v1/systemone",
@@ -175,10 +180,18 @@ def clasificar(orden: str) -> Decision:
         probabilidades=probs,
     )
 
-    # Segunda llamada solo cuando la operacion actua sobre una zona, y solo
-    # si la primera fue confiable: preguntar la zona de una clasificacion que
-    # se va a descartar son siete segundos tirados.
-    if catalogo.requiere_zona(accion) and d.confiable:
+    # La zona puede venir resuelta por texto desde el agente, que es el caso
+    # normal: casi toda orden de iluminacion la nombra. Cuando viene, la
+    # segunda llamada se omite. Medido el 10 de noviembre, el modelo la
+    # clasificaba mal en dos de tres casos —NINGUNA con 0,18 de confianza
+    # para "apaga la iluminacion del fondo"— y cobraba 7,6 s por hacerlo.
+    if zona_conocida is not None:
+        d.zona = zona_conocida
+        d.confianza_zona = 1.0
+    # Segunda llamada solo cuando la operacion actua sobre una zona, no se
+    # resolvio por texto, y la primera fue confiable: preguntar la zona de
+    # una clasificacion que se va a descartar son siete segundos tirados.
+    elif catalogo.requiere_zona(accion) and d.confiable:
         r2, t2 = _post(
             "/v1/systemone",
             {"model": MODELO_DECISION, "state": orden, "questions": catalogo.preguntas_zona()},
@@ -191,6 +204,10 @@ def clasificar(orden: str) -> Decision:
         d.tokens += _tokens(r2)
         d.llamadas = 2
 
+    # El riesgo depende de la zona en las operaciones que se confirman por
+    # alcance, y la zona no existe hasta aqui. Se recalcula en lugar de
+    # dejar el valor provisional que se fijo al construir la decision.
+    d.riesgo = catalogo.requiere_confirmacion(accion, d.zona)
     return d
 
 
