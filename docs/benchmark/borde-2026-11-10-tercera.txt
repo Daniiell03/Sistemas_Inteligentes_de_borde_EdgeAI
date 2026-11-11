@@ -1,0 +1,153 @@
+========================================================================
+MEDICION DEL BORDE — Proyecto II EdgeAI 'Jarvis'
+Fecha: 2026-11-11T00:02:24
+Equipo: Raspberry Pi 4 Model B Rev 1.5
+Kernel: 6.18.33-v8
+Catalogo: 9 operaciones, una etapa
+========================================================================
+
+ESTADO INICIAL
+  Temperatura del SoC : 43.3 C
+  Throttling          : no disponible
+  Memoria total       : 7806 MiB
+  Memoria disponible  : 4598 MiB
+  Modelos presentes   : llama3.2:1b, tev1:0.8b
+
+Calentando el modelo de decision (no se mide)...
+  primera consulta: 14.70s  (incluye la carga del modelo)
+
+CARRIL DE DECISION — una etapa
+------------------------------------------------------------------------
+  tiempo  tokens  tok/s  conf  resultado
+------------------------------------------------------------------------
+  14.94s     277   18.5  0.96  OK    LUZ_ON
+                         «encende la luz del frente»
+  14.92s     277   18.6  0.55  OK    LUZ_ON
+                         «prenda las luces por favor»
+  15.07s     281   18.6  0.98  OK    LUZ_ON
+                         «necesito iluminacion en la zona de trabajo»
+  14.95s     277   18.5  0.98  OK    LUZ_OFF
+                         «apaga la luz del fondo»
+  14.69s     276   18.8  1.00  OK    LUZ_OFF
+                         «apaga todas las luces»
+  14.97s     277   18.5  0.80  OK    LUZ_OFF
+                         «ya no necesitamos la iluminacion»
+  14.90s     279   18.7  0.44  FALLA NADA  (esperado LUZ_MODO)
+                         «pone el aula en modo proyeccion»
+  14.72s     276   18.7  0.45  FALLA NADA  (esperado LUZ_MODO)
+                         «cambia a modo lectura»
+  14.91s     279   18.7  0.71  FALLA NADA  (esperado LUZ_MODO)
+                         «activa la escena de trabajo en grupo»
+  30.02s     274    9.1  0.69  FALLA NADA  (esperado AMBIENTE)
+                         «a cuanto estamos»
+  14.93s     277   18.6  0.67  OK    AMBIENTE
+                         «que temperatura hay en el aula»
+  29.54s     279    9.4  0.52  OK    AMBIENTE
+                         «hace mucho calor aqui, cuanto marca»
+  29.66s     277    9.3  1.00  OK    ENTREGA_REG
+                         «registra la entrega de Maria»
+  14.86s     280   18.8  0.58  OK    ENTREGA_REG
+                         «anota que Jose entrego el laboratorio tres»
+  29.82s     277    9.3  0.54  OK    ENTREGA_REG
+                         «marca la tarea como recibida»
+  14.67s     276   18.8  0.54  OK    ENTREGA_VER
+                         «quien ya entrego»
+  29.69s     275    9.3  0.92  OK    ENTREGA_VER
+                         «cuantas entregas van»
+  14.89s     279   18.7  0.98  OK    ENTREGA_VER
+                         «mostrame el estado de las entregas»
+  14.70s     276   18.8  0.64  OK    AGENDA
+                         «que hay programado hoy»
+  14.91s     280   18.8  0.91  OK    AGENDA
+                         «cual es la agenda de la sesion»
+  14.89s     277   18.6  0.90  FALLA NADA  (esperado AGENDA)
+                         «que sigue despues de esto»
+  14.88s     279   18.8  0.92  OK    RESUMEN
+                         «hacemos un resumen de la clase»
+  14.88s     279   18.8  0.90  OK    RESUMEN
+                         «resumime como fue la sesion»
+  14.87s     280   18.8  0.60  FALLA ENTREGA_REG  (esperado RESUMEN)
+                         «dame un cierre de lo que hicimos»
+  14.73s     278   18.9  0.86  OK    NADA
+                         «asdfgh qwerty zxcvb»
+  14.75s     278   18.8  0.35  FALLA AMBIENTE  (esperado NADA)
+                         «cuanto cuesta un carro en Japon»
+  14.91s     277   18.6  0.63  OK    NADA
+                         «pone musica de los ochenta»
+------------------------------------------------------------------------
+Casos medidos        : 27 de 27  (0 con error)
+Acierto de accion    : 20/27  (74.1 %)
+Latencia p50/p95/max : 14.91s / 29.82s / 30.02s
+Latencia media       : 17.62s
+Confianza min/p50    : 0.35 / 0.71
+
+  Curva de intercambio del umbral de abstencion (RF-02)
+  El criterio no es el minimo de los aciertos: un umbral que no
+  descarta nada deja el requisito de abstencion sin efecto, y la
+  precision base publicada del modelo es de 63,5 %. Se elige el
+  valor que evita mas errores por cada acierto sacrificado.
+
+   umbral  aciertos  errores  abstiene  balance
+     0.30        20        7         0  evita 0, pierde 0
+     0.40        20        6         1  evita 1, pierde 0
+     0.50        20        4         3  evita 3, pierde 0
+     0.60        15        4         8  evita 3, pierde 5
+     0.70        12        2        13  evita 5, pierde 8
+
+LEY DE LATENCIA  t = n / V
+------------------------------------------------------------------------
+  Tokens por consulta (media)  : 278
+  Velocidad medida             : 17.0 tok/s
+  Referencia del 27/10/2026    : 18.5 tok/s
+  Desvio                       : 8.3 %
+  Presupuesto para 15 s        : 254 tokens
+
+CASO DE ILUMINACION — accion mas zona en dos llamadas
+------------------------------------------------------------------------
+  accion 14.93s  277tok conf 0.96  ->  LUZ_ON
+  zona    7.59s  144tok conf 0.91  ->  FRENTE
+  total  22.52s  421tok   «encende la luz del frente»
+
+  accion 14.77s  278tok conf 0.99  ->  LUZ_OFF
+  zona    7.80s  145tok conf 0.18  ->  NINGUNA
+  total  22.57s  423tok   «apaga la iluminacion del fondo»
+
+  accion 14.93s  277tok conf 0.87  ->  LUZ_ON
+  zona    7.60s  144tok conf 0.61  ->  NINGUNA
+  total  22.53s  421tok   «prende las luces por favor»
+
+------------------------------------------------------------------------
+  Orden de iluminacion (p50)   : 22.53s
+  Orden sin zona (p50)         : 14.91s
+
+CARRIL GENERATIVO — salida acotada a 40 tokens
+------------------------------------------------------------------------
+  15.79s  carga 0.0s · prompt 0.5s · genera 15.3s (40 tok)
+          -> ????????????????????????????????????????
+  15.70s  carga 0.0s · prompt 0.4s · genera 15.3s (40 tok)
+          -> ????????????????????????????????????????
+  15.71s  carga 0.0s · prompt 0.4s · genera 15.3s (40 tok)
+          -> ????????????????????????????????????????
+------------------------------------------------------------------------
+Generativo p50/max   : 15.71s / 15.79s
+
+COMPARACION DE CARRILES
+------------------------------------------------------------------------
+  Decision   p50 = 14.91s
+  Generativo p50 = 15.71s
+  El carril de decision es 1.1x mas rapido que el generativo
+
+ESTADO FINAL
+------------------------------------------------------------------------
+  Temperatura : 43.3 C -> 72.1 C  (delta +28.7)
+  Throttling  : no disponible
+  Memoria disponible : 4598 -> 4596 MiB  (consumo 2 MiB)
+  RSS del servidor con el modelo de decision : 2832 MiB (3 procesos)
+  RSS del servidor con ambos modelos         : 2834 MiB
+
+REGLA R1 — ningun modelo se lee de la MicroSD tras el arranque
+------------------------------------------------------------------------
+  mmcblk0: 0 lecturas, 0 sectores (0.00 MiB)
+    CUMPLE: lectura despreciable frente al tamano de los modelos
+
+========================================================================

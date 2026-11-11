@@ -15,13 +15,25 @@ from .hal import Actuator, TempHumReading, TempHumSensor
 
 # Rango fisicamente posible en un aula. Una lectura fuera de el no se
 # publica: es mas seguro no tener dato que tener uno falso.
-TEMP_MIN_C, TEMP_MAX_C = -40.0, 80.0
+# Rango del AULA, no del dispositivo. El DHT22 declara de -40 a 80 grados,
+# pero un aula fuera de 0 a 50 no existe, y el 10 de noviembre el sensor
+# entrego 79,8 de forma estable: dentro del rango del dispositivo, imposible
+# en el aula, y por lo tanto publicado como valido. El rango del dominio es
+# el que protege; el del fabricante solo dice que el chip no se quemo.
+TEMP_MIN_C, TEMP_MAX_C = 0.0, 50.0
 HUM_MIN_PCT, HUM_MAX_PCT = 0.0, 100.0
 
 # Cuantos periodos de muestreo puede tener una lectura antes de considerarse
 # vencida. Seis, no tres: el DHT22 falla lecturas con frecuencia y con un
 # margen corto la vista parpadearia a "no disponible" por una sola falla.
-PERIODOS_DE_VALIDEZ = 6
+# Medido en el laboratorio el 10 de noviembre: con el sensor instalado, 37
+# errores de lectura y 15 valores fuera de rango por cada puñado de lecturas
+# buenas. A ese ritmo una lectura valida llega cada minuto o mas, y con seis
+# periodos —quince segundos— el sistema declaraba "sin datos" teniendo una
+# medicion usable de hace menos de un minuto. Dos minutos es el equilibrio:
+# una temperatura de aula de dos minutos atras sigue siendo actual, y la
+# interfaz muestra la antiguedad para que nadie tenga que suponerla.
+PERIODOS_DE_VALIDEZ = 48
 
 
 class Dht22IioSensor(TempHumSensor):

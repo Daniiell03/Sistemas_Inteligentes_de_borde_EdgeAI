@@ -177,6 +177,23 @@ class Agente:
                 "resuelta por coincidencia de texto, sin consultar al modelo")
             return respuesta
 
+        # Segunda ruta rapida, por la misma razon que la de escenas: la
+        # palabra "pendiente" identifica la consulta de entregas sin
+        # ambiguedad en este dominio. Medido el 10 de noviembre desde el
+        # celular, el ejemplo que la propia interfaz sugiere —"¿Que tengo
+        # pendiente?"— era rechazado por falta de confianza tras quince
+        # segundos de espera.
+        accion_texto = catalogo.operacion_explicita(orden)
+        if accion_texto is not None:
+            t0 = time.perf_counter()
+            respuesta = self._actuar(rol, orden, accion_texto, None)
+            respuesta.confianza = 1.0
+            respuesta.latencia = time.perf_counter() - t0
+            self.almacen.anotar_decision(
+                orden, accion_texto, 1.0, respuesta.ejecutada,
+                "resuelta por coincidencia de texto, sin consultar al modelo")
+            return respuesta
+
         # La zona se resuelve por texto antes de clasificar y se entrega a la
         # inferencia, que entonces omite su segunda llamada. Son 7,6 s menos
         # en toda orden de iluminacion, y acierta donde el modelo fallaba.
@@ -374,14 +391,34 @@ class Agente:
             datos={"entregas": [e.__dict__ for e in entregas]})
 
     def _agenda(self) -> Respuesta:
+        """Plan de la sesion: actividades de hoy mas entregas proximas.
+
+        Una entrega con fecha limite es parte del plan tanto como un repaso.
+        Mirar solo la tabla de agenda hacia que el agente respondiera "no hay
+        nada programado" mientras la pantalla de al lado mostraba dos
+        entregas con fecha, que es lo que se observo el 10 de noviembre.
+        """
         eventos = self.almacen.agenda_de_hoy()
-        if not eventos:
-            return Respuesta(Parada.CUMPLIDA, "No hay nada en la agenda de hoy.",
-                             accion="AGENDA", datos={"eventos": []})
-        lista = "; ".join(e.descripcion for e in eventos)
-        return Respuesta(Parada.CUMPLIDA, f"En la agenda de hoy: {lista}.",
-                         accion="AGENDA",
-                         datos={"eventos": [e.__dict__ for e in eventos]})
+        tareas = self.almacen.tareas_proximas(3)
+
+        if not eventos and not tareas:
+            return Respuesta(
+                Parada.CUMPLIDA,
+                "No hay nada en la agenda de hoy ni entregas próximas.",
+                accion="AGENDA", datos={"eventos": [], "tareas": []})
+
+        partes = []
+        if eventos:
+            partes.append("En la agenda de hoy: "
+                          + "; ".join(e.descripcion for e in eventos) + ".")
+        if tareas:
+            partes.append("Próximas entregas: "
+                          + "; ".join(f"{t['titulo']}, {t['cuando']}"
+                                      for t in tareas) + ".")
+
+        return Respuesta(Parada.CUMPLIDA, " ".join(partes), accion="AGENDA",
+                         datos={"eventos": [e.__dict__ for e in eventos],
+                                "tareas": tareas})
 
     def _resumen(self) -> Respuesta:
         """Unica operacion que pasa por el carril generativo (RF-07)."""

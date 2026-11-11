@@ -101,6 +101,22 @@ th{color:var(--muted);font-weight:600;font-size:.8rem}
 .m.s{background:var(--card);border:1px solid var(--line)}
 .m.d{background:var(--bad-soft);color:var(--bad)}
 .sug{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+
+/* El navegador dibuja el icono del selector de fecha en negro, pensado para
+   fondos claros. Sobre el fondo oscuro de esta interfaz queda invisible:
+   esta ahi y se puede pulsar, pero no se ve. Se invierte para que tenga
+   contraste. Solo Chrome y derivados exponen este pseudo-elemento; en los
+   demas navegadores la regla se ignora sin efecto. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: .75;
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
 </style>
 </head>
 <body>
@@ -156,6 +172,7 @@ th{color:var(--muted);font-weight:600;font-size:.8rem}
             <div><div class="temp-big" id="hVal" style="font-size:1.9rem">--<small> %</small></div><div class="muted">Humedad</div></div>
             <span class="badge gray" id="tEstado">Sin datos</span>
           </div>
+          <div class="muted hidden" id="tDiag" style="margin:6px 0 10px;line-height:1.45"></div>
           <svg class="spark" id="spT" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Temperatura reciente"></svg>
           <div class="spark-l"><span>Temperatura · últimas lecturas</span><span id="spTr"></span></div>
           <svg class="spark" id="spH" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Humedad reciente" style="margin-top:10px"></svg>
@@ -310,6 +327,12 @@ function iniciarApp() {
   chip.textContent = esProf() ? "Profesor" : `${ME.nombre} · ${ME.carnet}`;
   $("#nuevaTarea").classList.toggle("hidden", !esProf());
   $("#nuevoEvento").classList.toggle("hidden", !esProf());
+
+  // El campo de fecha limite arranca con hoy a las 23:59. Publicar una tarea
+  // con limite pasa a ser un clic en vez de doce caracteres escritos a mano,
+  // y desaparece el caso de la tarea que queda sin fecha porque el campo se
+  // dejo vacio. Sigue siendo opcional: se puede borrar.
+  if (esProf() && !$("#ntFecha").value) $("#ntFecha").value = finDeHoy();
   $("#simBox").classList.toggle("hidden", !(esProf() && ME.simulado));
   $("#scenes").classList.toggle("hidden", !esProf());
   $("#soloVer").classList.toggle("hidden", esProf());
@@ -353,6 +376,37 @@ function pintarAmbiente(a) {
   else if (t.temp >= a.umbral) { b.className = "badge bad"; b.textContent = `Alta (≥ ${a.umbral} °C)`; }
   else if (t.temp >= a.umbral - 2) { b.className = "badge warn"; b.textContent = "Cerca del límite"; }
   else { b.className = "badge ok"; b.textContent = "Normal"; }
+  // Cuando no hay lectura, el panel explica por que. El portal distingue tres
+  // estados —sin datos, vencida y vigente— y cuenta por separado los errores
+  // de lectura de los valores imposibles, que son diagnosticos opuestos: uno
+  // apunta al cableado, el otro al sensor. Un panel vacio no dice nada; este
+  // dice que decidio el sistema y con que evidencia.
+  const d = $("#tDiag"), sen = a.sensor;
+  const partes = [];
+  if (sen && t) {
+    // Con lectura valida tambien se dice la antiguedad, si no es reciente.
+    // Dos minutos de margen hacen util el dato, pero quien lo lee tiene
+    // derecho a saber que no se midio en este instante.
+    if (sen.edad_s !== null && sen.edad_s > 20)
+      partes.push("Medida hace " + Math.round(sen.edad_s) + " s.");
+  } else if (sen) {
+    if (sen.estado === "vencido")
+      partes.push("La última lectura válida tiene " + sen.edad_s + " s y caducó a los " + sen.validez_s + " s.");
+    else if (sen.estado === "sin datos")
+      partes.push("El sensor no ha entregado ninguna lectura válida.");
+    else if (sen.estado === "simulado")
+      partes.push("Hardware simulado: no hay sensor físico.");
+    if (sen.ultimo_rechazo)
+      partes.push("El último valor rechazado fue " + sen.ultimo_rechazo.temp.toFixed(1)
+                + " °C con " + sen.ultimo_rechazo.hum.toFixed(1)
+                + " % de humedad, fuera del rango del aula.");
+    if (sen.fuera_de_rango || sen.fallos_io)
+      partes.push(sen.fuera_de_rango + " lecturas fuera de rango, "
+                + sen.fallos_io + " errores de lectura.");
+  }
+  d.textContent = partes.join(" ");
+  d.classList.toggle("hidden", partes.length === 0);
+
   const T = a.historial.map(x => x.temp), H = a.historial.map(x => x.hum);
   spark($("#spT"), T, "var(--brand)", a.umbral); spark($("#spH"), H, "var(--ok)");
   if (T.length) { $("#spTr").textContent = `${Math.min(...T).toFixed(1)}–${Math.max(...T).toFixed(1)} °C`; $("#spHr").textContent = `${Math.min(...H).toFixed(0)}–${Math.max(...H).toFixed(0)} %`; }
@@ -436,7 +490,41 @@ async function cargarTareas() {
   if (!ts.length) { cont.replaceChildren(h("div", { class: "card muted" }, esProf() ? "Aún no hay tareas. Publique la primera arriba." : "No hay tareas publicadas todavía.")); return; }
   cont.replaceChildren(...ts.map(esProf() ? tareaProf : tareaEst));
 }
-function limiteTxt(t) { return t.fecha_limite ? h("span", { class: "badge " + (t.vencida ? "bad" : "gray") }, (t.vencida ? "Venció " : "Límite ") + fechaIso(t.fecha_limite)) : null; }
+// Tiempo que falta para una fecha limite, en palabras. Un estudiante no
+// necesita saber que la entrega vence el 14/11 a las 23:59: necesita saber
+// cuanto le queda. El profesor si planifica con la fecha exacta, de modo que
+// a el se le muestran las dos cosas.
+// Formato que acepta un input datetime-local: AAAA-MM-DDTHH:MM en hora
+// local. No sirve toISOString(), que convierte a UTC y correria la hora seis
+// horas en Costa Rica.
+function finDeHoy() {
+  const d = new Date();
+  d.setHours(23, 59, 0, 0);
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate())
+       + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+function restante(iso) {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (!isFinite(ms)) return "";
+  const vencido = ms < 0, a = Math.abs(ms);
+  const min = Math.round(a / 60000), hr = Math.round(a / 3600000), dia = Math.round(a / 86400000);
+  let txt;
+  if (min < 60) txt = min + (min === 1 ? " minuto" : " minutos");
+  else if (hr < 48) txt = hr + (hr === 1 ? " hora" : " horas");
+  else txt = dia + (dia === 1 ? " día" : " días");
+  return vencido ? "venció hace " + txt : "faltan " + txt;
+}
+
+function limiteTxt(t) {
+  if (!t.fecha_limite) return null;
+  const cuanto = restante(t.fecha_limite);
+  const texto = esProf()
+    ? (t.vencida ? "Venció " : "Límite ") + fechaIso(t.fecha_limite) + " · " + cuanto
+    : cuanto.charAt(0).toUpperCase() + cuanto.slice(1);
+  return h("span", { class: "badge " + (t.vencida ? "bad" : "gray") }, texto);
+}
 
 function tareaProf(t) {
   const detalle = h("div", { class: "hidden" });
@@ -518,19 +606,14 @@ $("#cmd").addEventListener("keydown", e => { if (e.key === "Enter") enviar(); })
 })();
 
 // --- Agenda ------------------------------------------------------------
-async function cargarAgenda() {
-  let items;
-  try { items = await api("/api/agenda"); } catch (e) { toast(e.message); return; }
-  const cont = $("#listaAgenda");
-  if (!items.length) {
-    cont.replaceChildren(h("p", { class: "muted" }, "No hay actividades registradas."));
-    return;
-  }
-  cont.replaceChildren(...items.map(ev => h("div",
-    { class: "row", style: "justify-content:space-between;align-items:center;gap:12px;padding:8px 0" },
+const FILA = "justify-content:space-between;align-items:center;gap:12px;padding:8px 0";
+
+function filaEvento(ev) {
+  return h("div", { class: "row", style: FILA },
     h("div", {},
+      h("span", { class: "badge gray" }, "Actividad"), " ",
       h("strong", {}, ev.descripcion),
-      h("div", { class: "muted" }, fechaIso(ev.momento))),
+      h("div", { class: "muted" }, ev.momento ? fechaIso(ev.momento) : "sin hora definida")),
     esProf()
       ? h("button", {
           class: "btn bad sm",
@@ -539,7 +622,53 @@ async function cargarAgenda() {
             catch (e) { toast(e.message); }
           }
         }, "Borrar")
-      : null)));
+      : null);
+}
+
+function filaTarea(t) {
+  const estado = esProf()
+    ? t.entregas + (t.entregas === 1 ? " entrega recibida" : " entregas recibidas")
+    : (t.mi_entrega ? "ya entregaste" : "sin entregar");
+  return h("div", { class: "row", style: FILA },
+    h("div", {},
+      h("span", { class: "badge " + (t.vencida ? "bad" : "gray") }, "Entrega"), " ",
+      h("strong", {}, t.titulo),
+      h("div", { class: "muted" },
+        fechaIso(t.fecha_limite) + " · " + restante(t.fecha_limite) + " · " + estado)),
+    null);
+}
+
+// La agenda funde las actividades de la sesion con las entregas que tienen
+// fecha limite, ordenadas por fecha. Tenerlas en pestañas separadas obliga a
+// mirar en dos lados para responder "que sigue", que es justo la pregunta
+// que esta vista existe para contestar. Las entregas no se borran desde
+// aqui: eso vive en su propia pestaña, donde esta el resto de su gestion.
+async function cargarAgenda() {
+  let eventos = [], tareas = [];
+  try { eventos = await api("/api/agenda"); } catch (e) { toast(e.message); return; }
+  try { tareas = await api("/api/tareas"); } catch (e) { tareas = []; }
+
+  const filas = [];
+  for (const ev of eventos)
+    filas.push({ cuando: ev.momento, nodo: filaEvento(ev) });
+  for (const t of tareas)
+    if (t.fecha_limite) filas.push({ cuando: t.fecha_limite, nodo: filaTarea(t) });
+
+  // Lo que no tiene hora va al final: no se puede ubicar en la linea de
+  // tiempo, pero sigue siendo parte del plan.
+  filas.sort((a, b) => {
+    if (!a.cuando) return 1;
+    if (!b.cuando) return -1;
+    return new Date(a.cuando) - new Date(b.cuando);
+  });
+
+  const cont = $("#listaAgenda");
+  if (!filas.length) {
+    cont.replaceChildren(h("p", { class: "muted" },
+      "No hay actividades ni entregas programadas."));
+    return;
+  }
+  cont.replaceChildren(...filas.map(f => f.nodo));
 }
 
 $("#btnCrearEvento").onclick = async () => {

@@ -190,6 +190,38 @@ def zona_explicita(texto: str) -> Optional[str]:
     return None
 
 
+# Palabras que identifican una operacion sin ambiguedad dentro de este
+# catalogo. Se resuelven por texto, como las escenas y la zona: preguntarle
+# al modelo algo que ya esta escrito cuesta quince segundos y, medido el 10
+# de noviembre, termina en abstencion incluso con frases tan directas como
+# "¿que tengo pendiente?". Solo entran palabras sin otro uso posible entre
+# las nueve operaciones; ante la menor duda, decide el modelo.
+PALABRAS_DE_OPERACION = {
+    "ENTREGA_VER": ("pendiente", "pendientes"),
+}
+
+# Verbos de registro. Desactivan la ruta rapida aunque aparezca una palabra
+# de operacion: "anota la entrega pendiente de Maria" contiene "pendiente"
+# pero pide registrar, no consultar. Ahi hay ambiguedad real y corresponde
+# clasificar.
+PALABRAS_DE_REGISTRO = ("registra", "anota", "marca", "apunta", "recibid")
+
+
+def operacion_explicita(texto: str) -> Optional[str]:
+    """Operacion identificada por una palabra inequivoca, o None.
+
+    Devolver None no es un fallo: significa que la orden no se puede
+    resolver sin interpretar, y entonces se consulta al modelo.
+    """
+    t = normalizar(texto)
+    if any(p in t for p in PALABRAS_DE_REGISTRO):
+        return None
+    for accion, palabras in PALABRAS_DE_OPERACION.items():
+        if any(p in t for p in palabras):
+            return accion
+    return None
+
+
 def menciona_todo(texto: str) -> bool:
     """Si la orden declara el aula completa de forma explicita."""
     t = normalizar(texto)

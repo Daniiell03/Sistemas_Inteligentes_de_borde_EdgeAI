@@ -73,32 +73,57 @@ class RoomState:
 
 # Escenas del aula: estado objetivo por zona. Una zona ausente se apaga.
 #
-# Las escenas usan blanco con intensidad variable en lugar de color pleno:
-# solo el canal rojo admite intensidad continua (PWM por hardware), mientras
-# que verde y azul son conmutados, de modo que una escena con color a baja
-# intensidad degenera en rojo. Ajustar con los LEDs a la vista.
+# QUE DISTINGUE UNA ESCENA DE OTRA
+# --------------------------------
+# La version anterior usaba blanco en las cinco escenas y variaba solo el
+# brillo. Verificado con los LEDs el 10 de noviembre, eso las vuelve
+# indistinguibles, y por una razon de hardware: de los tres canales, solo el
+# rojo admite intensidad continua —PWM por hardware—, mientras que verde y
+# azul son conmutados y se encienden por encima de un umbral de 0,35. Bajar
+# el brillo de un blanco no lo atenua: mantiene verde y azul encendidos y
+# solo reduce el rojo. Lectura y examen eran ademas identicas linea por
+# linea.
+#
+# El rediseno usa lo que esta instalacion si distingue —cuales de las dos
+# zonas se encienden, y cuales canales— en lugar de matices que dos LEDs no
+# pueden representar:
+#
+#   proyeccion   solo el fondo, azul      una zona, frio
+#   lectura      ambas, blanco            dos zonas, neutro
+#   grupos       ambas, calido            dos zonas, ambar
+#   examen       frente rojo, fondo blanco   asimetrica, senaliza
+#   salida       solo el fondo, verde     una zona, senaletica
+#
+# Las cinco se reconocen a un metro de distancia y sin comparar contra otra.
 SCENES: Dict[str, Dict[Room, RoomState]] = {
-    # Pantalla visible al frente, luz suficiente al fondo para tomar notas.
+    # Pantalla visible al frente: esa zona se apaga por completo. El fondo
+    # en azul tenue da luz para tomar notas sin lavar la proyeccion.
     "proyeccion": {
-        Room.FONDO: RoomState(PALETTE["blanco"], 0.4),
+        Room.FONDO: RoomState(PALETTE["azul"], 0.5),
     },
-    # Lectura individual: ambas zonas al maximo.
+    # Lectura individual: ambas zonas en blanco al maximo.
     "lectura": {
         Room.FRENTE: RoomState(PALETTE["blanco"], 1.0),
         Room.FONDO: RoomState(PALETTE["blanco"], 1.0),
     },
-    # Trabajo en grupo: iluminacion pareja, intensidad media.
+    # Trabajo en grupo: ambar pareja. El canal azul queda bajo el umbral y
+    # no enciende, de modo que la mezcla es rojo mas verde: visiblemente
+    # distinta del blanco de lectura.
     "grupos": {
-        Room.FRENTE: RoomState(PALETTE["blanco"], 0.6),
-        Room.FONDO: RoomState(PALETTE["blanco"], 0.6),
+        Room.FRENTE: RoomState(PALETTE["calido"], 1.0),
+        Room.FONDO: RoomState(PALETTE["calido"], 1.0),
     },
-    # Examen: maxima iluminacion uniforme, sin distracciones de color.
+    # Examen: el frente en rojo senaliza la condicion a toda el aula, y el
+    # fondo en blanco al maximo da la luz que hace falta para escribir.
     "examen": {
-        Room.FRENTE: RoomState(PALETTE["blanco"], 1.0),
+        Room.FRENTE: RoomState(PALETTE["rojo"], 1.0),
         Room.FONDO: RoomState(PALETTE["blanco"], 1.0),
     },
-    # Fin de sesion: todo apagado.
-    "salida": {},
+    # Fin de sesion: el aula se apaga y queda el fondo en verde, como
+    # senalizacion de salida.
+    "salida": {
+        Room.FONDO: RoomState(PALETTE["verde"], 1.0),
+    },
 }
 
 

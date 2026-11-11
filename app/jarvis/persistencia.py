@@ -297,6 +297,37 @@ class Almacen:
         with self._conexion() as cx:
             cx.execute("DELETE FROM agenda WHERE id = ?", (id_evento,))
 
+    def tareas_proximas(self, limite: int = 3) -> List[dict]:
+        """Entregas con fecha limite aun no vencida, de la mas proxima.
+
+        Las fechas se guardan en formato ISO, de modo que la comparacion de
+        texto ordena igual que la cronologica y no hace falta convertir cada
+        fila para filtrar. La forma legible se arma aqui y no en el agente
+        para no obligarlo a importar utilidades de fecha que no necesita
+        para nada mas.
+        """
+        ahora = datetime.now().isoformat(timespec="minutes")
+        with self._conexion() as cx:
+            filas = cx.execute(
+                "SELECT titulo, fecha_limite FROM tareas"
+                " WHERE fecha_limite IS NOT NULL AND fecha_limite <> ''"
+                "   AND fecha_limite >= ?"
+                " ORDER BY fecha_limite LIMIT ?",
+                (ahora, limite),
+            ).fetchall()
+
+        salida = []
+        for f in filas:
+            try:
+                cuando = datetime.fromisoformat(
+                    f["fecha_limite"]).strftime("%d/%m a las %H:%M")
+            except ValueError:
+                cuando = f["fecha_limite"]
+            salida.append({"titulo": f["titulo"],
+                           "fecha_limite": f["fecha_limite"],
+                           "cuando": cuando})
+        return salida
+
     # -- ambiente -----------------------------------------------------------
 
     def registrar_ambiente(self, temperatura: float, humedad: float,
