@@ -422,40 +422,92 @@ def main() -> int:
         out(f"  Desvio                       : {desvio:.1f} %")
         out(f"  Presupuesto para 15 s        : {15*vel:.0f} tokens")
 
-    # --- caso de iluminacion: accion mas zona ---
-    # Tres de las nueve operaciones necesitan saber sobre que zona actuar, y
-    # se resuelven con una segunda llamada. Las otras veintitres de cada
-    # veintisiete no la pagan. El diseno tiene por lo tanto dos tiempos y no
-    # un promedio, y conviene reportar ambos.
+    # --- caso de iluminacion: dos estrategias sobre las mismas frases ---
+    # Tres de las nueve operaciones necesitan saber sobre que zona actuar.
+    # Hasta el 10 de noviembre eso se resolvia con una segunda llamada al
+    # modelo; desde entonces se lee de la propia orden, que es donde la zona
+    # esta escrita. Esta seccion mide las dos estrategias sobre las mismas
+    # frases y en la misma corrida, porque la justificacion del cambio es
+    # cuantitativa y no debe depender de comparar corridas distintas.
+    #
+    # Las dos comparten la llamada de accion, de modo que medir ambas no
+    # cuesta ninguna consulta adicional: la estrategia vigente es esa
+    # llamada sola, y la anterior es esa misma mas la de zona.
+
+    # Se prefiere la funcion real del paquete cuando esta importable, para
+    # medir la regla que de verdad corre en produccion. En la Pi el paquete
+    # esta instalado; fuera de ella el banco debe seguir funcionando solo,
+    # de ahi la copia de respaldo.
+    try:
+        from jarvis import catalogo as _cat
+        zona_en_texto = _cat.zona_explicita
+        fuente_zona = "jarvis.catalogo (la del sistema)"
+    except Exception:
+        _ALIAS = {
+            "FRENTE": ("frente", "adelante", "enfrente", "pizarra", "tablero"),
+            "FONDO":  ("fondo", "atras", "detras", "al final"),
+        }
+
+        def zona_en_texto(texto):
+            t = texto.lower()
+            for zona, palabras in _ALIAS.items():
+                if any(p in t for p in palabras):
+                    return zona
+            return None
+
+        fuente_zona = "copia local del banco (paquete no importable)"
+
     out()
-    out("CASO DE ILUMINACION — accion mas zona en dos llamadas")
+    out("CASO DE ILUMINACION — zona por modelo contra zona por texto")
     out("-" * 72)
-    totales = []
-    for frase in ("encende la luz del frente",
-                  "apaga la iluminacion del fondo",
-                  "prende las luces por favor"):
+    out(f"  resolucion por texto: {fuente_zona}")
+    out()
+    vigentes, anteriores = [], []
+    esperadas = {"encende la luz del frente": "FRENTE",
+                 "apaga la iluminacion del fondo": "FONDO",
+                 "prende las luces por favor": None}
+    for frase, esperada in esperadas.items():
         try:
             r1, t1 = decidir(frase)
             accion, conf1 = elegida(r1, "accion")
             r2, t2 = zona_de(frase)
-            zona, conf2 = elegida(r2, "zona")
+            zona_modelo, conf2 = elegida(r2, "zona")
         except Exception as e:
             out(f"  ERROR  «{frase}»: {e}")
             continue
         n1 = tokens_entrada(r1) or 0
         n2 = tokens_entrada(r2) or 0
-        totales.append(t1 + t2)
+        zona_texto = zona_en_texto(frase)
+
+        # "NINGUNA" del modelo y None del texto significan lo mismo: la
+        # orden no nombra zona y por lo tanto afecta el aula entera.
+        norm = lambda z: None if z in (None, "", "NINGUNA") else z
+        ok_modelo = "OK   " if norm(zona_modelo) == esperada else "FALLA"
+        ok_texto = "OK   " if norm(zona_texto) == esperada else "FALLA"
+
+        vigentes.append(t1)
+        anteriores.append(t1 + t2)
         c1 = f"{conf1:.2f}" if conf1 is not None else "  -  "
         c2 = f"{conf2:.2f}" if conf2 is not None else "  -  "
-        out(f"  accion {t1:5.2f}s {n1:4d}tok conf {c1}  ->  {accion}")
-        out(f"  zona   {t2:5.2f}s {n2:4d}tok conf {c2}  ->  {zona}")
-        out(f"  total  {t1+t2:5.2f}s {n1+n2:4d}tok   «{frase}»")
+        out(f"  «{frase}»   (zona esperada: {esperada or 'ninguna'})")
+        out(f"    accion       {t1:5.2f}s {n1:4d}tok conf {c1}  ->  {accion}")
+        out(f"    zona modelo  {t2:5.2f}s {n2:4d}tok conf {c2}  ->  "
+            f"{zona_modelo or '-':<8} {ok_modelo}")
+        out(f"    zona texto    0.00s    0tok            ->  "
+            f"{zona_texto or 'ninguna':<8} {ok_texto}")
+        out(f"    vigente {t1:5.2f}s {n1:4d}tok   |   anterior "
+            f"{t1+t2:5.2f}s {n1+n2:4d}tok")
         out()
-    if totales:
+    if vigentes:
+        v, a = pct(vigentes, 50), pct(anteriores, 50)
         out("-" * 72)
-        out(f"  Orden de iluminacion (p50)   : {pct(totales,50):.2f}s")
+        out(f"  Orden de iluminacion, estrategia vigente (p50) : {v:.2f}s")
+        out(f"  Orden de iluminacion, estrategia anterior (p50): {a:.2f}s")
+        out(f"  Ahorro por resolver la zona en la orden        : "
+            f"{a - v:.2f}s  ({100 * (a - v) / a:.0f} %)")
         if tiempos:
-            out(f"  Orden sin zona (p50)         : {pct(tiempos,50):.2f}s")
+            out(f"  Orden sin zona (p50)                           : "
+                f"{pct(tiempos,50):.2f}s")
 
     # --- carril generativo ---
     gen = []

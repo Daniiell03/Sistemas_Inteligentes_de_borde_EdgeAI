@@ -172,7 +172,7 @@ ALIAS_ZONA = {
 # distinguir "apaga todas las luces" —que afecta todo y exige confirmacion—
 # de una orden que simplemente omitio la zona.
 PALABRAS_DE_TODO = ("todas", "todos", "todo el aula", "el aula completa",
-                    "completa", "general")
+                    "completa", "general", "ambas", "ambos", "las dos")
 
 
 def zona_explicita(texto: str) -> Optional[str]:
@@ -236,6 +236,29 @@ def operacion_explicita(texto: str) -> Optional[str]:
         if any(p in t for p in palabras):
             return accion
     return None
+
+
+# Verbos que piden encender sin ambiguedad. Junto a un color de la paleta
+# hacen la orden completamente explicita, y entonces no hay nada que
+# preguntarle al modelo. Medido el 10 de noviembre: "enciende ambas luces en
+# morado" se clasifico como APAGAR, y "pon ambas iluminaciones en morado"
+# quedo bajo el umbral de confianza. Las mismas frases con "rojo" acertaban,
+# de modo que el clasificador tropieza con la palabra, no con la estructura.
+VERBOS_DE_ENCENDIDO = ("encend", "enciend", "prend", "pone", "pon ",
+                       "poner", "coloca")
+
+# Cualquiera de estas desactiva la regla: una negacion invierte el sentido y
+# un verbo de apagado lo contradice. En ambos casos hay ambiguedad real y
+# corresponde clasificar.
+MARCAS_QUE_ANULAN = ("no ", "nunca", "sin ", "apag")
+
+
+def enciende_explicito(texto: str) -> bool:
+    """Si la orden pide encender de forma inequivoca."""
+    t = normalizar(texto)
+    if any(m in t for m in MARCAS_QUE_ANULAN):
+        return False
+    return any(v in t for v in VERBOS_DE_ENCENDIDO)
 
 
 def menciona_todo(texto: str) -> bool:

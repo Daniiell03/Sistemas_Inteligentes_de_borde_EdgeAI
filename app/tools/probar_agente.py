@@ -191,6 +191,22 @@ def pruebas_simuladas(b: Banco, db: str) -> None:
                     r.motivo is Parada.FALTA_DATO,
                     f"motivo={r.motivo.value} mensaje={r.mensaje!r}")
 
+        # Encender con color nombrado no llega al modelo, y aplica el color.
+        antes_col = len(falso.consultas)
+        r = agente.procesar("profesor", "poné ambas luces en morado")
+        b.verificar("encender con color no consulta al modelo",
+                    r.motivo is Parada.CUMPLIDA
+                    and len(falso.consultas) == antes_col
+                    and r.datos.get("color") == "morado",
+                    f"motivo={r.motivo.value} datos={r.datos}")
+
+        # Pero una orden de apagado con la palabra "morado" no debe tomarla.
+        falso.programar("LUZ_OFF", 0.95, "FRENTE")
+        r = agente.procesar("profesor", "apagá la luz morada del frente")
+        b.verificar("apagar no toma la ruta de encendido",
+                    r.accion == "LUZ_OFF",
+                    f"accion={r.accion} motivo={r.motivo.value}")
+
         # Consultar el estado se resuelve leyendo la HAL: ni se programa una
         # clasificacion ni debe consumirse ninguna. Es la propiedad que
         # justifica que LUZ_VER no ocupe un criterio del catalogo.

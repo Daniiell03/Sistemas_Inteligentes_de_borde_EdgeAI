@@ -206,6 +206,24 @@ class Agente:
         if zona_texto is None and catalogo.menciona_todo(orden):
             zona_texto = "NINGUNA"
 
+        # Encender con un color nombrado. El verbo y el color estan escritos
+        # en la orden, de modo que no queda nada que interpretar. La regla
+        # es estrecha a proposito: exige las dos cosas y se anula ante una
+        # negacion o un verbo de apagado. Las ordenes de luz en general
+        # siguen pasando por el modelo; solo este caso no lo necesita.
+        color_texto = _color_en(orden)
+        if (color_texto not in (None, "apagado")
+                and catalogo.enciende_explicito(orden)):
+            t0 = time.perf_counter()
+            respuesta = self._actuar(rol, orden, "LUZ_ON", zona_texto)
+            respuesta.confianza = 1.0
+            respuesta.zona = zona_texto
+            respuesta.latencia = time.perf_counter() - t0
+            self.almacen.anotar_decision(
+                orden, "LUZ_ON", 1.0, respuesta.ejecutada,
+                "resuelta por coincidencia de texto, sin consultar al modelo")
+            return respuesta
+
         t0 = time.perf_counter()
         try:
             decision = inferencia.clasificar(orden, zona_conocida=zona_texto)
