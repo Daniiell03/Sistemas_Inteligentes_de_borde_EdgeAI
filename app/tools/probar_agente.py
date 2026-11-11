@@ -191,6 +191,24 @@ def pruebas_simuladas(b: Banco, db: str) -> None:
                     r.motivo is Parada.FALTA_DATO,
                     f"motivo={r.motivo.value} mensaje={r.mensaje!r}")
 
+        # Consultar el estado se resuelve leyendo la HAL: ni se programa una
+        # clasificacion ni debe consumirse ninguna. Es la propiedad que
+        # justifica que LUZ_VER no ocupe un criterio del catalogo.
+        antes_luz = len(falso.consultas)
+        r = agente.procesar("estudiante", "cuáles son las luces del aula")
+        b.verificar("consultar el estado de las luces no consulta al modelo",
+                    r.motivo is Parada.CUMPLIDA and len(falso.consultas) == antes_luz,
+                    f"motivo={r.motivo.value} consultas={len(falso.consultas)}"
+                    f" mensaje={r.mensaje!r}")
+
+        # Y la guarda contra el falso positivo: lleva "que luces" pero pide
+        # actuar, de modo que tiene que llegar al modelo.
+        falso.programar("LUZ_OFF", 0.9, "FRENTE")
+        r = agente.procesar("profesor", "qué luces apago del frente")
+        b.verificar("una orden de actuacion no toma la ruta rapida",
+                    r.accion == "LUZ_OFF",
+                    f"accion={r.accion} motivo={r.motivo.value}")
+
         # -- escenas -------------------------------------------------------
         b.seccion("Escenas")
 

@@ -198,13 +198,29 @@ def zona_explicita(texto: str) -> Optional[str]:
 # las nueve operaciones; ante la menor duda, decide el modelo.
 PALABRAS_DE_OPERACION = {
     "ENTREGA_VER": ("pendiente", "pendientes"),
+    # Consultar el estado de la iluminacion. No es una operacion del
+    # catalogo del modelo y no lo sera: la respuesta se lee de la capa de
+    # hardware, de modo que el modelo no aportaria nada, y un decimo
+    # criterio costaria diecisiete tokens en todas las ordenes del sistema.
+    "LUZ_VER": ("cuales son las luces", "cuales luces", "que luces",
+                "estado de las luces", "como estan las luces",
+                "como estan las luz", "estado de la iluminacion",
+                # Preguntar por el modo o la escena es consultar, no
+                # cambiar. Estas frases llevan las palabras "modo" y
+                # "escena", pero escena_explicita() corre antes y se queda
+                # con las que si nombran una escena concreta, de modo que
+                # aqui solo llegan las preguntas.
+                "cual es el modo", "cual es la escena", "que modo",
+                "que escena", "modo actual", "escena actual",
+                "en que modo", "en que escena"),
 }
 
-# Verbos de registro. Desactivan la ruta rapida aunque aparezca una palabra
-# de operacion: "anota la entrega pendiente de Maria" contiene "pendiente"
-# pero pide registrar, no consultar. Ahi hay ambiguedad real y corresponde
-# clasificar.
-PALABRAS_DE_REGISTRO = ("registra", "anota", "marca", "apunta", "recibid")
+# Verbos de actuacion. Desactivan la ruta rapida aunque aparezca una palabra
+# de operacion, porque ahi la ambiguedad es real y corresponde clasificar:
+# "anota la entrega pendiente de Maria" contiene "pendiente" pero pide
+# registrar, y "que luces apago" contiene "que luces" pero pide apagar.
+PALABRAS_DE_REGISTRO = ("registra", "anota", "marca", "apunta", "recibid",
+                        "encend", "enciend", "prend", "apag", "ilumina")
 
 
 def operacion_explicita(texto: str) -> Optional[str]:

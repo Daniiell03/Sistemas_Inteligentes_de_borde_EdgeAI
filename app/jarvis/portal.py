@@ -641,7 +641,7 @@ SOLO_PROFESOR = {"LUZ_ON", "LUZ_OFF", "LUZ_MODO", "ENTREGA_REG"}
 # que refresque la vista del aula cuando corresponda. La accion exacta del
 # catalogo viaja aparte, para la bitacora y para mostrar la trazabilidad.
 INTENTO_VISIBLE = {
-    "LUZ_ON": "LUCES", "LUZ_OFF": "LUCES", "LUZ_MODO": "LUCES",
+    "LUZ_ON": "LUCES", "LUZ_OFF": "LUCES", "LUZ_MODO": "LUCES", "LUZ_VER": "LUCES",
     "AMBIENTE": "AMBIENTE",
     "ENTREGA_REG": "ENTREGAS", "ENTREGA_VER": "ENTREGAS",
     "AGENDA": "AGENDA", "RESUMEN": "RESUMEN", "NADA": "NONE",

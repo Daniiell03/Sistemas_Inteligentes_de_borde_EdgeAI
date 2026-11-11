@@ -44,7 +44,7 @@ from typing import Any, Dict, Optional
 
 from . import catalogo, inferencia
 from .hal import TempHumSensor
-from .hal_rooms import PALETTE, Room, RoomLight
+from .hal_rooms import PALETTE, SCENES, Room, RoomLight
 from .persistencia import Almacen, SinTareas
 
 MAX_ITERACIONES = 2
@@ -294,6 +294,8 @@ class Agente:
                 return self._luz(zona, encender=False)
             if accion == "LUZ_MODO":
                 return self._escena(orden)
+            if accion == "LUZ_VER":
+                return self._estado_luces()
             if accion == "AMBIENTE":
                 return self._ambiente()
             if accion == "ENTREGA_VER":
@@ -346,6 +348,64 @@ class Agente:
                          accion="LUZ_ON" if encender else "LUZ_OFF",
                          datos={"zonas": [r.name for r in objetivo],
                                 "color": color})
+
+    def _escena_activa(self) -> Optional[str]:
+        """Escena cuyo estado objetivo coincide con el actual, si alguna.
+
+        El sistema no almacena "la escena actual" y es deliberado: almacena
+        el estado de cada zona, que es lo que de verdad determina la
+        iluminacion. Una orden posterior sobre una sola zona deja el aula en
+        un estado que ya no corresponde a ninguna escena, y seguir diciendo
+        "esta en lectura" seria afirmar algo falso. Por eso se deduce
+        comparando, y no coincidir con ninguna es una respuesta legitima.
+        """
+        def igual(actual, objetivo) -> bool:
+            if actual is None or not actual.is_on:
+                return objetivo is None
+            if objetivo is None:
+                return False
+            return (abs(actual.brightness - objetivo.brightness) < 0.01
+                    and actual.color == objetivo.color)
+
+        estado = {r: self.luces.get(r) for r in self.luces.available()}
+        for nombre, objetivo in SCENES.items():
+            if all(igual(estado[r], objetivo.get(r)) for r in estado):
+                return nombre
+        return None
+
+    def _estado_luces(self) -> Respuesta:
+        """Estado actual de cada zona, leido de la capa de hardware.
+
+        No consulta al modelo y no esta en su catalogo: la pregunta se
+        identifica por texto y la respuesta esta en la memoria del proceso.
+        Es la misma informacion que muestra la pestana del aula, dicha en
+        palabras para quien pregunta por el asistente.
+        """
+        partes, zonas = [], {}
+        for r in sorted(self.luces.available(), key=lambda z: z.value):
+            st = self.luces.get(r)
+            if st is None or not st.is_on:
+                partes.append(f"{r.value}: apagada")
+                zonas[r.name] = {"encendida": False}
+                continue
+            nombre = next((k for k, v in PALETTE.items() if v == st.color),
+                          "color")
+            partes.append(f"{r.value}: {nombre} al "
+                          f"{round(st.brightness * 100)} por ciento")
+            zonas[r.name] = {"encendida": True, "color": nombre,
+                             "brillo": st.brightness}
+
+        if not partes:
+            return Respuesta(Parada.FALTA_DATO,
+                             "No hay zonas de iluminación en esta instalación.",
+                             accion="LUZ_VER")
+        escena = self._escena_activa()
+        prefijo = (f"El aula está en escena {escena}. " if escena
+                   else "El aula no está en ninguna escena conocida. ")
+        return Respuesta(Parada.CUMPLIDA,
+                         prefijo + "Luces: " + "; ".join(partes) + ".",
+                         accion="LUZ_VER",
+                         datos={"zonas": zonas, "escena": escena})
 
     def _escena(self, orden: str) -> Respuesta:
         escena = catalogo.escena_en(orden)
