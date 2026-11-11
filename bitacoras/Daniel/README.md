@@ -517,6 +517,221 @@ La segunda configuración coincide exactamente con el presupuesto de 277 tokens 
 
 ---
 
+## Entrada 13 — 6 de noviembre de 2026 (sesión de laboratorio)
+
+Primera sesión con los periféricos conectados. Se cerró la verificación de hardware que figuraba desde la entrada 12 como el riesgo abierto de mayor peso, y se identificó un defecto en la capa de abstracción que solo podía manifestarse contra las líneas reales del procesador.
+
+**Actividades realizadas**
+
+- **Escritura de la imagen y cableado de los periféricos.** Se escribió la imagen reconstruida con los overlays del árbol de dispositivos efectivamente desplegados y se montaron las dos zonas de iluminación y el sensor ambiental sobre placa de prototipado. Cada zona emplea un diodo de tres colores con cátodo común: los tres ánodos se alimentan desde líneas del procesador a través de resistencias de limitación y el cátodo retorna a la tierra común del conjunto. Los diodos no llevan alimentación propia; la corriente la entrega la propia línea del procesador, de modo que el cuarto terminal no queda sin conectar sino que es el retorno de los otros tres. El sensor ambiental se conectó con resistencia de elevación de 10 kΩ entre la línea de datos y la alimentación de 3,3 V, conforme a su hoja de datos.
+- **Verificación física de las dos zonas de iluminación.** Se confirmó encendido, apagado, cambio de color y variación de intensidad sobre los diodos reales, con el canal rojo modulado por el subsistema de modulación por ancho de pulso y los canales verde y azul conmutados.
+- **Corrección del indicador de dirección de línea en la capa de abstracción.** La reserva de líneas de salida fallaba con denegación de permisos. Se detalla en la sección de problemas.
+- **Verificación de la regla R1 con línea base propia.** Se repitió el procedimiento establecido en la entrada 12: línea base del ruido de lectura del medio de arranque con el sistema en reposo y ambos modelos residentes, y conteo durante la corrida completa del banco.
+- **Ejecución del banco con el catálogo de una sola pregunta.** Se corrieron las veintisiete frases del dominio académico sobre el catálogo reducido a una pregunta de acción con nueve criterios, conforme al pendiente derivado de la entrada 12.
+- **Confirmación del umbral de abstención por curva de intercambio.** Se sustituyó el criterio anterior del banco —el mínimo de la confianza entre los aciertos— por la curva de aciertos perdidos contra errores evitados, y se evaluaron cinco valores de umbral sobre los datos de la corrida.
+- **Reconstrucción de la imagen con credenciales de red distintas.** Se regeneró la imagen con los parámetros de la red inalámbrica del segundo integrante, para que pudiera continuar las pruebas sobre el equipo sin presencia física del primero.
+
+**Productos obtenidos**
+
+- `docs/benchmark/borde-2026-11-06.txt` — reporte del banco con el catálogo de una pregunta y la curva de intercambio del umbral.
+- Capa de abstracción corregida en el indicador de dirección de línea, commit `7430d4a`.
+- Banco de medición con el criterio de umbral sustituido por la curva de intercambio.
+- Imagen reconstruida con credenciales de red alternativas.
+
+**Datos medidos**
+
+*Equipo: Raspberry Pi 4 Model B Rev 1.5, núcleo 6.18.33-v8.*
+
+**Regla R1 — cumple, en cero absoluto.** Línea base en reposo: cero lecturas del medio de arranque con ambos modelos residentes. Durante la corrida completa del banco: **cero lecturas y cero sectores**. Es el primer registro sin lectura alguna del medio de arranque; la entrada 12 había obtenido 8 lecturas y 504 sectores, y la entrada 10, 1254,52 MiB.
+
+**Banco de veintisiete casos, catálogo de nueve criterios en una pregunta:**
+
+| Magnitud | Valor |
+|---|---|
+| Latencia (p50 / p95 / máximo) | 14,96 s / 15,11 s / 15,15 s |
+| Tokens por consulta (media) | 278 |
+| Velocidad medida | 18,6 tok/s |
+| Desvío respecto de la referencia del 27/10 | 0,4 % |
+| Acierto de acción | 20 de 27 (74,1 %) |
+| Confianza mínima / mediana | 0,35 / 0,71 |
+
+La reducción del catálogo a una sola pregunta, derivada de las mediciones de la entrada 12, lleva la latencia de 22,49 s a 14,96 s y sitúa el sistema **dentro del presupuesto de quince segundos fijado en la propuesta**. La ley `t = n/V` queda confirmada por sexta medición independiente con un desvío del 0,4 %.
+
+**Curva de intercambio del umbral de abstención (RF-02):**
+
+| Umbral | Aciertos | Errores ejecutados | Abstenciones | Balance |
+|---:|---:|---:|---:|---|
+| 0,30 | 20 | 7 | 0 | evita 0, pierde 0 |
+| 0,40 | 20 | 6 | 1 | evita 1, pierde 0 |
+| **0,50** | **20** | **4** | **3** | **evita 3, pierde 0** |
+| 0,60 | 15 | 4 | 8 | evita 3, pierde 5 |
+| 0,70 | 12 | 2 | 13 | evita 5, pierde 8 |
+
+El valor 0,50 descarta tres clasificaciones erróneas **sin sacrificar ningún acierto**, y es el último que lo consigue: 0,60 no evita ningún error adicional y cuesta cinco aciertos. El umbral vigente queda confirmado por el criterio correcto y no por el que proponía el banco.
+
+**Problemas encontrados y solución**
+
+- **El indicador de dirección de línea estaba mal definido.** La reserva de líneas de salida sobre la interfaz de caracteres del controlador de entrada y salida de propósito general fallaba con denegación de permisos, pese a que el servicio declara explícitamente el acceso al dispositivo correspondiente. Para separar una restricción del supervisor de servicios de un defecto del código, se ejecutó la misma operación desde una consola con privilegios de administrador, fuera del servicio: el fallo persistió, lo que descartó el confinamiento y señaló al código. La segunda versión de la interfaz de caracteres define los indicadores de línea como posiciones de bit independientes —en uso, activo en bajo, entrada, salida— y la capa de abstracción empleaba la segunda posición para la salida, que corresponde a **activo en bajo**. El núcleo rechazaba la combinación resultante. Corregido a la cuarta posición, la reserva se concede y las dos zonas responden. **Un indicador mal elegido no produce un comportamiento erróneo sino un rechazo, y el rechazo se parece a un problema de permisos.**
+- **La operación de cambio de escena vuelve a fallar en las tres frases.** Es la tercera campaña consecutiva con el mismo resultado: clasificada como fuera de alcance en las tres frases que nombran una escena de forma literal. Dos campañas podían atribuirse al azar; tres descartan esa explicación y señalan la descripción del criterio o la competencia entre criterios. Se difiere a un banco específico que aísle la operación.
+- **La resolución del nombre local del equipo resulta poco fiable desde otros sistemas.** La continuidad de las pruebas por parte del segundo integrante exigió resolver el nombre local del equipo desde un sistema operativo distinto, que no lo resolvió de forma consistente pese a estar ambos en la misma red. La sesión se recuperó empleando la dirección numérica, que funciona en todos los casos. El documento de instalación debe indicar la dirección numérica como procedimiento principal y el nombre local como conveniencia.
+
+**Pendientes derivados**
+
+- Aislar la operación de cambio de escena en un banco específico que distinga si el problema es la descripción del criterio o la competencia con los demás.
+- Decidir si el equipo debe proveer su propia red inalámbrica para la demostración, en lugar de depender de una red existente.
+- Ejecutar la prueba de la capa de abstracción contra el sensor ambiental, que quedó cableado pero sin verificar.
+
+**Referencias consultadas**
+
+- Linux kernel — interfaz de caracteres de GPIO, segunda versión del ABI: https://docs.kernel.org/userspace-api/gpio/chardev.html
+- Aosong — hoja de datos del sensor DHT22 / AM2302.
+- Linux kernel — contadores de `/proc/diskstats`: https://docs.kernel.org/admin-guide/iostats.html
+
+---
+
+## Entrada 14 — 9 de noviembre de 2026 (sesión de laboratorio)
+
+Sesión dedicada a incorporar a la imagen las dependencias que exige la capa de aplicación y a corregir el calentamiento de los modelos de inferencia, que fallaba en el arranque sin dejar rastro de la causa. Se identificó además la naturaleza real de la medida de confianza que reporta la interfaz de decisión, con consecuencias sobre la validez del umbral.
+
+**Actividades realizadas**
+
+- **Ampliación de la receta de la aplicación con sus dependencias.** Se incorporaron a las dependencias de ejecución los ocho paquetes que exige el marco de servicios web empleado por la capa de aplicación, junto con sus dependencias transitivas. Uno de ellos incluye una extensión compilada en Rust, lo que determina el tiempo de la primera construcción.
+- **Reducción del paralelismo de construcción por agotamiento de memoria.** Se fijaron explícitamente el número de tareas simultáneas y el paralelismo del compilador en dos, tras detenerse la construcción por falta de memoria en el equipo de desarrollo.
+- **Ajuste de la unidad de servicio al confinamiento del supervisor.** El archivo de configuración de la capa de aplicación se trasladó al directorio de estado del servicio: la unidad declara protección estricta del sistema de archivos, que deja la jerarquía de configuración en solo lectura, de modo que un archivo que el propio servicio debe poder reescribir no puede residir allí.
+- **Reescritura del script de calentamiento de modelos.** Se añadieron captura del código de estado y del cuerpo de la respuesta, tres reintentos con espera creciente, ordenación respecto del objetivo de sincronización horaria, y una comprobación posterior que cuenta los modelos efectivamente residentes.
+- **Calibración aislada de la operación de cambio de escena.** Se construyó un banco específico que prueba la operación contra varias descripciones candidatas, y que admite ejecutarla sin los demás criterios para medir el techo alcanzable.
+- **Resolución de las escenas por coincidencia de texto antes de clasificar.** A partir del resultado de la calibración se invirtió el orden del ciclo de decisión para las órdenes que nombran una escena.
+- **Lanzamiento de la construcción completa de la imagen** con todas las dependencias incorporadas.
+
+**Productos obtenidos**
+
+- Receta de la aplicación con las dependencias de ejecución completas.
+- `app/jarvis-warmup.sh` reescrito con reintentos y diagnóstico visible.
+- Unidad de calentamiento ordenada respecto del objetivo de sincronización horaria.
+- `app/tools/calibrar_catalogo.py` — banco de calibración de descripciones de criterio.
+- Ruta de resolución de escenas por coincidencia de texto, anterior a la consulta al modelo.
+- Imagen completa construida: 10 278 tareas, todas con éxito, en 7 h 43 min.
+
+**Datos medidos**
+
+**Calibración de la operación de cambio de escena.** Probada contra el catálogo completo, la operación falla en las tres frases. Probada **aislada frente al criterio de fuera de alcance**, acierta tres de tres. El modelo reconoce la operación; lo que falla es la medida de decisión.
+
+**La confianza reportada es un margen, no una probabilidad.** El valor desciende cuando se retiran los criterios distractores, comportamiento incompatible con una probabilidad de la opción elegida y propio de un margen entre la opción ganadora y su competidora inmediata. El criterio de fuera de alcance, descrito de forma deliberadamente amplia, compite de manera plausible con cualquier frase y comprime ese margen por debajo del umbral. **Consecuencia práctica: un umbral de abstención solo es válido para el catálogo contra el cual se calibró**, y toda modificación del catálogo obliga a repetir la curva de intercambio.
+
+**Costo de la resolución por texto.** La operación de escena pasa de quince segundos con clasificación poco fiable a resolución inmediata y determinista, sin consulta al modelo. El catálogo ya resolvía el nombre de la escena por texto una vez clasificada la orden; lo que faltaba era hacerlo **antes** de clasificar, de modo que una abstención no impidiera aplicar una escena nombrada literalmente.
+
+**Construcción:** 10 278 tareas, 7 h 43 min. El tiempo lo domina la compilación de la extensión en Rust, que no admite reutilización desde la caché de estados en la primera construcción.
+
+**Problemas encontrados y solución**
+
+- **El calentamiento fallaba sin dejar rastro de la causa.** La unidad terminaba con un código de error del cliente HTTP que indica respuesta no satisfactoria, mientras que la misma petición ejecutada a mano devolvía éxito. La primera hipótesis —que el extremo consultado no correspondía al tipo de modelo— quedó refutada por esa misma prueba manual. El registro del sistema mostró la causa real en las marcas de tiempo: **el equipo carece de reloj de tiempo real**, arranca con una fecha falsa, y el servicio de sincronización horaria ajustó el reloj justo entre el envío de la consulta y el error. Un salto de meses a mitad de una petición con tiempo límite basta para abortarla. Se corrigió por tres vías simultáneas: ordenación de la unidad respecto del objetivo de sincronización, reintentos con espera creciente, y registro del código de estado y del cuerpo de la respuesta. **La opción del cliente HTTP que se empleaba para silenciar las respuestas de error también silencia el cuerpo que explica cuál fue el error**, lo que convirtió un fallo diagnosticable en uno opaco.
+- **Agotamiento de memoria durante la construcción.** La construcción se detuvo por falta de memoria con el paralelismo por omisión. Se fijaron dos tareas simultáneas y dos hilos de compilación, lo que alarga la construcción pero la hace reproducible en el equipo disponible.
+- **La configuración de la aplicación no podía residir en la jerarquía de configuración.** La unidad declara protección estricta del sistema de archivos, que deja esa jerarquía en solo lectura para el proceso. Un archivo que el propio servicio reescribe debe residir en su directorio de estado.
+
+**Pendientes derivados**
+
+- Verificar sobre el sistema arrancado que el calentamiento carga ambos modelos sin intervención, que es lo que nunca llegó a comprobarse.
+- Repetir la curva de intercambio del umbral si el catálogo cambia.
+- Verificar el artefacto construido contra el commit que lo origina antes de escribir la tarjeta.
+
+**Referencias consultadas**
+
+- systemd — `ProtectSystem`, `StateDirectory` y objetivos de sincronización horaria: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+- Yocto Project Reference Manual — `BB_NUMBER_THREADS` y `PARALLEL_MAKE`: https://docs.yoctoproject.org/ref-manual/variables.html
+- curl — comportamiento de la opción de fallo silencioso: https://curl.se/docs/manpage.html
+
+---
+
+## Entrada 15 — 10 de noviembre de 2026 (sesión de laboratorio)
+
+Sesión de verificación sobre la imagen construida la noche anterior. Se confirmaron el despliegue de los overlays y el funcionamiento del calentamiento, se identificaron y corrigieron dos defectos de la capa de abstracción que solo se manifiestan con un periférico degradado, se rediseñaron las escenas contra la limitación real del hardware, y se registró una anomalía de latencia que no pudo explicarse y no volvió a reproducirse.
+
+**Actividades realizadas**
+
+- **Verificación del artefacto contra el commit antes de escribir la tarjeta.** Se comprobó en el manifiesto de la imagen la presencia de los once paquetes incorporados la noche anterior, y en el paquete de la aplicación, la presencia de los archivos nuevos. El procedimiento proviene de la entrada 12 y se aplica ya de forma sistemática.
+- **Verificación de los overlays sobre el sistema arrancado.** Se confirmó que el subsistema de modulación por ancho de pulso y el de instrumentación aparecen expuestos por el núcleo, cerrando el pendiente abierto en la entrada 12.
+- **Verificación del calentamiento de modelos.** Se comprobó que la unidad carga ambos modelos sin intervención y que la comprobación posterior informa dos modelos residentes.
+- **Corrección de la caducidad de la lectura del sensor ambiental.** La capa de abstracción conservaba indefinidamente la última lectura válida. Se detalla en la sección de problemas.
+- **Ajuste del rango de validez al dominio de la aplicación.** El filtro de verosimilitud empleaba el rango del dispositivo y se sustituyó por el del aula.
+- **Rediseño de las cinco escenas contra la limitación real del hardware.** Se detalla en la sección de problemas.
+- **Resolución de la zona de iluminación por coincidencia de texto.** Se extendió a la zona el criterio aplicado a las escenas en la entrada anterior, y se habilitó a la capa de inferencia para omitir su segunda consulta cuando la zona llega resuelta.
+- **Resolución por texto de otras tres familias de órdenes:** la consulta de pendientes, la consulta del estado de iluminación y de la escena vigente, y el encendido con un color nombrado.
+- **Ampliación del banco de medición a las dos estrategias de zona.** Se modificó la sección de iluminación para medir, sobre las mismas frases y en la misma corrida, la estrategia vigente y la anterior.
+- **Cuatro corridas completas del banco** y reconstrucción de la imagen con todo lo anterior.
+
+**Productos obtenidos**
+
+- `docs/benchmark/borde-2026-11-10.txt`, `-segunda`, `-tercera` y `-cuarta` — cuatro corridas, incluida la que registra la anomalía de latencia.
+- Capa de abstracción con caducidad de lectura, contadores separados por tipo de fallo y diagnóstico consultable.
+- Cinco escenas rediseñadas y verificadas contra los diodos reales.
+- Capa de inferencia con omisión de la consulta de zona.
+- Banco del agente coordinador ampliado de 23 a 30 verificaciones.
+- Imagen reconstruida con todo lo anterior.
+
+**Datos medidos**
+
+*Equipo: Raspberry Pi 4 Model B Rev 1.5, núcleo 6.18.33-v8.*
+
+**Regla R1 — cumple, en cero absoluto.** Cero lecturas y cero sectores del medio de arranque durante la corrida completa, con ambos modelos residentes. Segundo registro consecutivo sin lectura alguna.
+
+**Banco de veintisiete casos, corrida final:**
+
+| Magnitud | Valor |
+|---|---|
+| Latencia (p50 / p95) | 14,89 s / 15,05 s |
+| Tokens por consulta (media) | 278 |
+| Velocidad medida | 18,7 tok/s |
+| Desvío respecto de la referencia del 27/10 | 1,0 % |
+| Acierto de acción del clasificador | 20 de 27 (74,1 %) |
+| Acierto efectivo del sistema | 23 de 27 (85,2 %) |
+
+Las dos cifras de acierto difieren en las tres frases de cambio de escena, que el clasificador falla y el sistema resuelve por coincidencia de texto antes de consultarlo. **La diferencia entre ambas es la contribución del diseño de resolución previa**, y por eso se reportan las dos.
+
+**Las dos estrategias de resolución de zona, medidas sobre las mismas frases:**
+
+| Frase | Zona por modelo | Zona por texto | Vigente | Anterior |
+|---|---|---|---:|---:|
+| «encendé la luz del frente» | FRENTE, conf. 0,91 — correcta | FRENTE — correcta | 14,91 s | 22,49 s |
+| «apagá la iluminación del fondo» | NINGUNA, conf. 0,18 — **errónea** | FONDO — correcta | 14,72 s | 22,51 s |
+| «prendé las luces por favor» | NINGUNA, conf. 0,61 — correcta | ninguna — correcta | 14,93 s | 22,54 s |
+
+| Magnitud | Valor |
+|---|---|
+| Orden de iluminación, estrategia vigente (p50) | 14,91 s |
+| Orden de iluminación, estrategia anterior (p50) | 22,51 s |
+| Ahorro por resolver la zona en la orden | 7,60 s (34 %) |
+
+La segunda fila resume el argumento: la consulta al modelo cuesta 7,78 s y 145 tokens **para equivocarse** en una orden que lleva la zona escrita, mientras que leerla del texto cuesta cero y acierta.
+
+**Criterio de diseño establecido.** Cinco familias de órdenes se resuelven hoy por coincidencia de texto. El criterio es uniforme y conviene dejarlo enunciado: *se resuelve por texto aquello que está escrito literalmente en la orden y no admite otra lectura dentro del catálogo*. De ahí se sigue que una operación identificable por texto **no necesita figurar en el catálogo del modelo**: la consulta de estado de iluminación se incorporó sin añadir un décimo criterio, de modo que el prompt sigue en nueve criterios y 278 tokens y el umbral calibrado conserva su validez. El catálogo es la lista de lo que hay que *preguntar*, no la lista de lo que el sistema sabe hacer. Cada criterio adicional cuesta del orden de diecisiete tokens en **todas** las órdenes y obliga a repetir la curva de intercambio.
+
+**Anomalía de latencia no explicada.** La primera corrida de la jornada reportó 29,8 s de mediana de forma sostenida sobre veinticinco peticiones consecutivas, con 9,3 tok/s y un desvío del 49,6 % respecto de la referencia. El registro del servidor de inferencia confirmó la cifra desde su propio lado, descartando que fuera un artefacto del instrumento. Se descartaron sucesivamente, con medición: espera activa del segundo modelo residente —97 % de procesador ocioso—; limitación térmica —la corrida posterior subió de 49,7 °C a 73,5 °C sin degradación—; limitación de frecuencia —1,5 GHz sostenidos con los dos gobernadores disponibles—; versión del servidor de inferencia —idéntica—; saturación del diario del sistema —673 líneas en seis minutos, sin supresión—; y diversidad de los prompts —ocho consultas con frases distintas e iguales, todas en quince segundos—. **No se identificó la causa, y la anomalía no volvió a reproducirse en tres corridas posteriores.** Se registra como observada y no explicada; la única diferencia de contexto no controlada es que esa corrida siguió a quince minutos de uso interactivo del sistema.
+
+**Problemas encontrados y solución**
+
+- **La lectura del sensor ambiental no caducaba.** El sensor pasó a entregar 84,4 °C de forma estable y repetible. El filtro de verosimilitud rechazaba correctamente cada lectura, pero la última aceptada —79,8 °C— quedaba fijada de forma indefinida y se publicaba como si fuera actual; el muestreador la reescribía en la base de datos cada cinco segundos, acumulando 867 filas idénticas de un dato congelado. **Un sensor que deja de entregar valores válidos debe verse como un sensor sin datos y no como un sensor con datos viejos.** Se añadió caducidad a la lectura, se separó el contador de fallos de lectura del de valores fuera de rango —son diagnósticos opuestos: el primero apunta al cableado, el segundo al sensor— y se expuso el diagnóstico con el último valor rechazado. Con el contador separado, el defecto se habría identificado en diez segundos en lugar de en una hora.
+- **El rango de validez era el del dispositivo y no el del aula.** El filtro empleaba el rango declarado por el fabricante, de −40 a 80 °C, dentro del cual 79,8 °C es un valor aceptable. Un aula fuera del intervalo de 0 a 50 °C no existe. Se ajustó al rango del dominio: **el rango del fabricante solo afirma que el dispositivo no se ha destruido; el del dominio es el que protege de publicar un dato imposible.**
+- **La caducidad inicial era demasiado corta para la tasa real de fallos.** Fijada en seis períodos de muestreo —quince segundos— bajo el supuesto de que los fallos serían esporádicos. Medida la tasa real sobre el sensor instalado, las lecturas válidas llegan separadas por más de un minuto, de modo que el sistema declaraba ausencia de datos disponiendo de una medición utilizable de hace menos de un minuto. Se elevó a dos minutos y se expuso la antigüedad de la lectura, de modo que la utilidad no se gana a costa de la honestidad.
+- **Las cinco escenas eran indistinguibles entre sí.** Todas empleaban blanco con intensidad variable, y dos de ellas eran idénticas línea por línea. La causa es de hardware y estaba anotada en el propio código desde la entrada 12 sin verificarse: de los tres canales, **solo el rojo admite intensidad continua**; verde y azul son conmutados y se encienden por encima de un umbral. Reducir la intensidad de un blanco no lo atenúa, sino que mantiene verde y azul encendidos y solo disminuye el rojo. Se rediseñaron sobre lo que la instalación sí distingue —cuáles de las dos zonas se encienden y cuáles canales— en lugar de matices que dos diodos no pueden representar, y se verificaron contra el hardware.
+- **El sensor ambiental resultó defectuoso.** Entrega tramas íntegras, cuya suma de comprobación el controlador valida antes de publicarlas, con valores imposibles y estables. Descartados el cableado —la resistencia de elevación está instalada conforme a la hoja de datos— y la alimentación, se concluye que el dispositivo está degradado. Quedó inutilizado al final de la sesión y debe reemplazarse. La operación de consulta ambiental puede demostrarse con el extremo de simulación que provee la capa de aplicación, declarándolo explícitamente.
+- **Dos defectos preexistentes del banco del agente coordinador, descubiertos al volver a ejecutarlo.** El primero: la ruta de resolución de escenas por texto, incorporada en la entrada anterior, dejaba sin consumir una clasificación programada en el doble de prueba, lo que desplazaba una posición todas las verificaciones siguientes y producía siete fallos aparentes con una sola causa. El segundo: la excepción que señala la ausencia de tareas creadas escapaba del agente base, que no la capturaba. Ambos existían desde el 9 de noviembre y permanecieron ocultos porque el banco no volvió a ejecutarse. **Un banco que no se ejecuta no protege de nada**, y la disciplina de correrlo tras cada cambio se incorpora al procedimiento.
+- **El banco de medición seguía midiendo una estrategia abandonada.** Su sección de iluminación consultaba la zona al modelo en una segunda llamada, que el sistema ya no realiza, de modo que reportaba 22,5 s para una operación que cuesta 14,9 s. Se reescribió para medir ambas estrategias sobre las mismas frases y en la misma corrida, porque la justificación del cambio es cuantitativa y no debe depender de comparar corridas distintas.
+
+**Pendientes derivados**
+
+- Reemplazar el sensor ambiental.
+- Escribir y verificar la imagen reconstruida sobre el equipo, con antelación suficiente a la demostración. El equipo opera actualmente con archivos desplegados manualmente sobre su medio de arranque, que no sobreviven a una reescritura de la imagen.
+- Redactar el documento de instalación, único entregable pendiente.
+- Decidir si el equipo debe proveer su propia red inalámbrica para la demostración.
+
+**Referencias consultadas**
+
+- Linux kernel — controlador `dht11` del subsistema de instrumentación: https://docs.kernel.org/iio/index.html
+- Linux kernel — gobernadores de frecuencia y `cpufreq`: https://docs.kernel.org/admin-guide/pm/cpufreq.html
+- systemd — límites de ritmo del diario del sistema: https://www.freedesktop.org/software/systemd/man/journald.conf.html
+
+---
+
 ## Pendientes
 
 **Requieren hardware (sesión de laboratorio)**
